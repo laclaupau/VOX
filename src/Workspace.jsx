@@ -10,7 +10,9 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
+import SpeakingStudio from "./SpeakingStudio";
 import "./Workspace.css";
+
 
 const stages = [
   { id: "think", label: "Think", number: "01" },
@@ -270,13 +272,7 @@ function Workspace({ challenge, onBack }) {
                 </div>
               </div>
 
-              <div className="workspace-hint">
-                <Mic2Icon />
-                <span>
-                  Next: turn these ideas into an oral contribution.
-                  Recording and feedback will be developed in a later sprint.
-                </span>
-              </div>
+              <SpeakingStudio question={challenge.question} />
             </div>
           )}
 

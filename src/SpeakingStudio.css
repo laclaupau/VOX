@@ -1,0 +1,288 @@
+.speaking-studio {
+  margin-top: 30px;
+  padding: 28px;
+  background: #f5f1e9;
+  border: 1px solid #e5ded2;
+  border-radius: 18px;
+  color: #20242e;
+}
+
+.speaking-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.speaking-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  background: #292d40;
+  color: #fff;
+  border-radius: 13px;
+}
+
+.speaking-kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: #777184;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.speaking-heading h2 {
+  margin: 0 0 7px;
+  font-size: 23px;
+  letter-spacing: -0.7px;
+}
+
+.speaking-heading p {
+  margin: 0;
+  color: #777184;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.speaking-prompt {
+  padding: 17px 20px;
+  margin-bottom: 22px;
+  background: #fff;
+  border-left: 3px solid #ed795e;
+  border-radius: 8px;
+}
+
+.speaking-prompt span {
+  color: #8c8493;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+}
+
+.speaking-prompt p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.recording-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 20px;
+  background: #fff;
+  border: 1px solid #e9e4dc;
+  border-radius: 13px;
+}
+
+.recording-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #777184;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recording-indicator {
+  width: 9px;
+  height: 9px;
+  background: #b9b4bd;
+  border-radius: 50%;
+}
+
+.recording-indicator.is-recording {
+  background: #e45d57;
+  box-shadow: 0 0 0 5px #fbe5e2;
+  animation: recording-pulse 1.2s infinite;
+}
+
+@keyframes recording-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.recording-timer {
+  margin: 20px 0;
+  color: #292d40;
+  font-size: 42px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+}
+
+.record-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 190px;
+  padding: 14px 22px;
+  background: #ed795e;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.record-button:hover {
+  background: #d9654c;
+  transform: translateY(-2px);
+}
+
+.stop-button {
+  background: #292d40;
+}
+
+.stop-button:hover {
+  background: #41465e;
+}
+
+.audio-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 17px;
+  width: 100%;
+  max-width: 430px;
+}
+
+.audio-result-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #39816a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.audio-result audio {
+  width: 100%;
+}
+
+.retry-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  color: #41465e;
+  border: 1px solid #d8d2ca;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.retry-button:hover {
+  background: #f5f1e9;
+}
+
+.recording-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 430px;
+  margin-top: 18px;
+  color: #bd5149;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.recording-message {
+  color: #777184;
+  font-size: 13px;
+}
+
+.speaking-privacy {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 18px;
+  color: #777184;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+/* tiempo límite estático */
+.timer-limit {
+  font-size: 1rem;
+  opacity: 0.4;
+  margin-left: 4px;
+}
+
+/* últimos 10 segundos */
+.recording-timer.near-limit {
+  color: #e11d48; /* Un rojo coral / rosa oscuro (fiel a Tailwind rose-600), no un rojo primario chillón */
+  animation: pulse-subtle 1.5s infinite ease-in-out;
+  font-weight: 600;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* anticipación debajo del botón inicial */
+.time-limit-notice {
+  font-size: 0.85rem;
+  color: #64748b; 
+  margin-top: 10px;
+  text-align: center;
+  font-weight: 400;
+}
+
+/* contenedor del mensaje de "Time's up!" */
+.recording-info-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f0fdf4; 
+  color: #166534; 
+  border: 1px solid #bbf7d0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-top: 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+
+@media (max-width: 600px) {
+  .speaking-studio {
+    padding: 19px;
+  }
+
+  .speaking-heading h2 {
+    font-size: 20px;
+  }
+
+  .recording-panel {
+    padding: 25px 14px;
+  }
+
+  .recording-timer {
+    font-size: 36px;
+  }
+}
+
