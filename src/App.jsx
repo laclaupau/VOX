@@ -127,9 +127,9 @@ function App() {
             </div>
 
             <h1>
-              Don't just have
+              Make thinking
               <br />
-              an idea. <span>Make it heard.</span>
+              visible. <span>Enter the conversation.</span>
             </h1>
 
             <p className="hero-description">

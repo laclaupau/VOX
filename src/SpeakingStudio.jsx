@@ -68,6 +68,7 @@ function SpeakingStudio({ question }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState("");
   const [aiError, setAiError] = useState("");
+  const [aiStatus, setAiStatus] = useState("");
 
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -214,6 +215,7 @@ function SpeakingStudio({ question }) {
     setAiLoading(true);
     setAiFeedback("");
     setAiError("");
+    setAiStatus("");
 
     try {
       const response = await fetch("/api/reflect", {
@@ -234,7 +236,9 @@ function SpeakingStudio({ question }) {
         throw new Error(data.error || "Something went wrong.");
       }
 
-      setAiFeedback(data.feedback);
+      setAiStatus(data.status);
+      setAiFeedback(data.message);
+
     } catch (error) {
       setAiError(
         error.message || "The AI companion is unavailable. Please try again."
@@ -434,6 +438,7 @@ function SpeakingStudio({ question }) {
                     setReflectionSaved(false);
                     setAiFeedback("");
                     setAiError("");
+                    setAiStatus("");
                   }}
                   placeholder="After listening to my contribution, I think..."
                 />
@@ -478,10 +483,16 @@ function SpeakingStudio({ question }) {
               )}
 
               {aiFeedback && (
-                <div className="ai-feedback">
+                <div className={`ai-feedback ai-feedback-${aiStatus}`}>
                   <div className="ai-feedback-heading">
                     <Sparkles size={17} />
-                    <strong>A question to take your thinking further</strong>
+
+                    <strong>
+                      {aiStatus === "ready" && "A question to take your thinking further"}
+                      {aiStatus === "needs_development" && "Let's develop your idea"}
+                      {aiStatus === "unclear" && "Let's make your thinking clearer"}
+                      {aiStatus === "off_topic" && "Let's connect your idea to the challenge"}
+                    </strong>
                   </div>
 
                   <p>{aiFeedback}</p>
