@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import {
   Mic,
@@ -6,123 +7,69 @@ import {
   Headphones,
   AlertCircle,
   CheckCircle2,
-  Info,
-  Brain,
-  Lightbulb,
-  Link2,
-  Compass,
-  Save,
   Sparkles,
+  ArrowRight,
+  Volume2,
 } from "lucide-react";
 import "./SpeakingStudio.css";
 
-const reflectionLenses = [
-  {
-    id: "clarify",
-    title: "Clarify",
-    description: "Make your idea easier to understand.",
-    prompt:
-      "What exactly do I mean? Which part of my contribution could I explain more clearly?",
-    routine: "Inspired by: What Makes You Say That?",
-    icon: Lightbulb,
-  },
-  {
-    id: "develop",
-    title: "Develop",
-    description: "Give your idea more depth.",
-    prompt:
-      "What makes me say that? What reason, example or evidence could make my idea stronger?",
-    routine: "Inspired by: What Makes You Say That?",
-    icon: Brain,
-  },
-  {
-    id: "connect",
-    title: "Connect",
-    description: "Link your idea to something else.",
-    prompt:
-      "How does my idea connect with the text, another idea, an experience or something I already know?",
-    routine: "Inspired by: Connect–Extend–Challenge",
-    icon: Link2,
-  },
-  {
-    id: "challenge",
-    title: "Challenge",
-    description: "Explore another point of view.",
-    prompt:
-      "What might someone with a different point of view say? Is there an assumption I could question?",
-    routine: "Inspired by: Connect–Extend–Challenge",
-    icon: Compass,
-  },
-];
+const TIME_LIMIT = 90;
+const MAX_AUDIO_SIZE = 3 * 1024 * 1024;
 
-function SpeakingStudio({ question }) {
-  const [status, setStatus] = useState("idle");
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [error, setError] = useState("");
-  const [infoMessage, setInfoMessage] = useState("");
+function SpeakingStudio({
+  question,
+  cefrLevel = "B1",
+  language = "English",
+  subject = "General",
+  onBack,
+}) {
+  const [stage, setStage] = useState("first");
+  const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
-  const [selectedLens, setSelectedLens] = useState(null);
-  const [reflection, setReflection] = useState("");
-  const [reflectionSaved, setReflectionSaved] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiFeedback, setAiFeedback] = useState("");
-  const [aiError, setAiError] = useState("");
-  const [aiStatus, setAiStatus] = useState("");
+  const [firstAudio, setFirstAudio] = useState(null);
+  const [firstAudioUrl, setFirstAudioUrl] = useState("");
+  const [secondAudio, setSecondAudio] = useState(null);
+  const [secondAudioUrl, setSecondAudioUrl] = useState("");
 
-  const mediaRecorderRef = useRef(null);
+  const [feedback, setFeedback] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
-
-  const TIME_LIMIT = 90;
+  const timerRef = useRef(null);
+  const attemptRef = useRef(1);
 
   useEffect(() => {
     return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
+      if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+      if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
     };
-  }, [audioUrl]);
+  }, [firstAudioUrl, secondAudioUrl]);
 
-  useEffect(() => {
-    if (status !== "recording") return;
-
-    if (seconds >= TIME_LIMIT) {
-      setInfoMessage(
-        "Time's up! Your audio was automatically saved."
-      );
-      stopRecording();
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setSeconds((previous) => previous + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [status, seconds]);
-
-  function formatTime(time) {
-    const minutes = Math.floor(time / 60);
-    const remainingSeconds = time % 60;
+  function formatTime(value) {
+    const minutes = Math.floor(value / 60);
+    const secondsLeft = value % 60;
 
     return `${String(minutes).padStart(2, "0")}:${String(
-      remainingSeconds
+      secondsLeft
     ).padStart(2, "0")}`;
   }
 
   async function startRecording() {
     setError("");
-    setInfoMessage("");
+    setSeconds(0);
 
-    if (
-      !navigator.mediaDevices?.getUserMedia ||
-      !window.MediaRecorder
-    ) {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setError("Your browser does not support audio recording.");
       return;
     }
@@ -136,7 +83,8 @@ function SpeakingStudio({ question }) {
       chunksRef.current = [];
 
       const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
+      recorderRef.current = recorder;
+      attemptRef.current = stage === "first" ? 1 : 2;
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -145,112 +93,227 @@ function SpeakingStudio({ question }) {
       };
 
       recorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, {
+        const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
 
-        const newAudioUrl = URL.createObjectURL(audioBlob);
+        if (blob.size > MAX_AUDIO_SIZE) {
+          setError(
+            "This recording is too large to analyse. Please record a shorter contribution."
+          );
+          setRecording(false);
+          setStage(attemptRef.current === 1 ? "first" : "second");
+        } else {
+          const url = URL.createObjectURL(blob);
 
-        setAudioUrl(newAudioUrl);
-        setStatus("finished");
+          if (attemptRef.current === 1) {
+            if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+            setFirstAudio(blob);
+            setFirstAudioUrl(url);
+            setStage("first-ready");
+          } else {
+            if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+            setSecondAudio(blob);
+            setSecondAudioUrl(url);
+            setStage("second-ready");
+          }
+        }
 
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+        setRecording(false);
+        setSeconds(0);
       };
 
       recorder.start();
+      setRecording(true);
 
-      setSeconds(0);
-      setStatus("recording");
+      timerRef.current = setInterval(() => {
+        setSeconds((previous) => {
+          if (previous + 1 >= TIME_LIMIT) {
+            clearInterval(timerRef.current);
+            if (recorder.state === "recording") recorder.stop();
+            return TIME_LIMIT;
+          }
+
+          return previous + 1;
+        });
+      }, 1000);
     } catch (err) {
-      if (err.name === "NotAllowedError") {
-        setError(
-          "Microphone access was denied. Check your browser permissions."
-        );
-      } else {
-        setError(
-          "We couldn't access your microphone. Please try again."
-        );
-      }
+      setError(
+        err.name === "NotAllowedError"
+          ? "Microphone access was denied. Check your browser permissions."
+          : "We couldn't access your microphone. Please try again."
+      );
     }
   }
 
   function stopRecording() {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-      setStatus("processing");
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
     }
   }
 
-  function recordAgain() {
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
+  function discardCurrentAudio() {
+    if (stage === "first-ready") {
+      if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+      setFirstAudio(null);
+      setFirstAudioUrl("");
+      setStage("first");
     }
 
-    setAudioUrl(null);
-    setSeconds(0);
+    if (stage === "second-ready") {
+      if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+      setSecondAudio(null);
+      setSecondAudioUrl("");
+      setStage("second");
+    }
+
     setError("");
-    setInfoMessage("");
-    setSelectedLens(null);
-    setReflection("");
-    setReflectionSaved(false);
-    setStatus("idle");
   }
 
-  function chooseLens(lensId) {
-    setSelectedLens(lensId);
-    setReflection("");
-    setReflectionSaved(false);
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        const result = reader.result;
+        resolve(result.split(",")[1]);
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 
-  function saveReflection() {
-    if (reflection.trim()) {
-      setReflectionSaved(true);
-    }
-  }
-
-  async function exploreThinking() {
-    if (!reflection.trim() || !activeLens) return;
-
-    setAiLoading(true);
-    setAiFeedback("");
-    setAiError("");
-    setAiStatus("");
+  async function sendToGemini(action) {
+    setLoading(true);
+    setError("");
 
     try {
+      const currentAudio = action === "analyze" ? firstAudio : secondAudio;
+
+      const mimeType = (
+        firstAudio?.type || currentAudio?.type || "audio/webm"
+      ).split(";")[0];
+
+      const payload = {
+        action,
+        question,
+        cefrLevel,
+        language,
+        subject,
+        mimeType,
+      };
+
+      if (action === "analyze") {
+        payload.audio = await blobToBase64(firstAudio);
+      } else {
+        payload.firstAudio = await blobToBase64(firstAudio);
+        payload.secondAudio = await blobToBase64(secondAudio);
+      }
+
       const response = await fetch("/api/reflect", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          question,
-          lens: activeLens.title,
-          reflection: reflection.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Something went wrong.");
+        throw new Error(data.error || "Gemini could not analyse the audio.");
       }
 
-      setAiStatus(data.status);
-      setAiFeedback(data.message);
-
-    } catch (error) {
-      setAiError(
-        error.message || "The AI companion is unavailable. Please try again."
-      );
+      if (action === "analyze") {
+        setFeedback(data.result);
+        setStage("first-feedback");
+      } else {
+        setComparison(data.result);
+        setStage("comparison");
+      }
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
-      setAiLoading(false);
+      setLoading(false);
     }
   }
 
-  const activeLens = reflectionLenses.find(
-    (lens) => lens.id === selectedLens
-  );
+  function startSecondAttempt() {
+    setSecondAudio(null);
+    setSecondAudioUrl("");
+    setError("");
+    setStage("second");
+  }
+
+  function restartActivity() {
+    if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+    if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+
+    setFirstAudio(null);
+    setFirstAudioUrl("");
+    setSecondAudio(null);
+    setSecondAudioUrl("");
+    setFeedback(null);
+    setComparison(null);
+    setError("");
+    setSeconds(0);
+    setStage("first");
+  }
+
+  function renderAudioPlayer(label, url) {
+    if (!url) return null;
+
+    return (
+      <div className="vox-audio-player">
+        <div className="vox-audio-label">
+          <Volume2 size={17} />
+          <strong>{label}</strong>
+        </div>
+        <audio controls src={url} />
+      </div>
+    );
+  }
+
+  function renderFeedbackSection(title, data) {
+    if (!data) return null;
+
+    const fields = [
+      ["strengths", "What worked well"],
+      ["development", "What you could develop"],
+      ["oralCommunication", "Oral communication"],
+      ["nextQuestion", "A question to think further"],
+      ["nextStep", "Your next step"],
+      ["changes", "What changed"],
+      ["reasoning", "Development of your ideas"],
+      ["pending", "What still needs attention"],
+      ["evidence", "Evidence from the recordings"],
+    ];
+
+    return (
+      <section className="vox-feedback-card">
+        <div className="vox-feedback-title">
+          <Sparkles size={19} />
+          <h3>{title}</h3>
+        </div>
+
+        {fields.map(([key, label]) =>
+          data[key] ? (
+            <div className="vox-feedback-item" key={key}>
+              <h4>{label}</h4>
+              <p>{data[key]}</p>
+            </div>
+          ) : null
+        )}
+
+        {data.message && <p>{data.message}</p>}
+      </section>
+    );
+  }
 
   return (
     <section className="speaking-studio">
@@ -258,18 +321,10 @@ function SpeakingStudio({ question }) {
         <div className="speaking-icon">
           <Mic size={21} />
         </div>
-
         <div>
-          <span className="speaking-kicker">
-            STEP 03 · SPEAK
-          </span>
-
+          <span className="speaking-kicker">SPEAKING STUDIO</span>
           <h2>Give your ideas a voice.</h2>
-
-          <p>
-            Use your notes to speak naturally. You don't need
-            to read a script.
-          </p>
+          <p>Think it through. Say it. Listen. Try again.</p>
         </div>
       </div>
 
@@ -278,254 +333,157 @@ function SpeakingStudio({ question }) {
         <p>{question}</p>
       </div>
 
-      <div className="recording-panel">
-        <div className="recording-status">
-          <span
-            className={`recording-indicator ${status === "recording" ? "is-recording" : ""
+      {(stage === "first" || stage === "second") && (
+        <div className="recording-panel">
+          <div className="recording-status">
+            <span
+              className={`recording-indicator ${
+                recording ? "is-recording" : ""
               }`}
-          />
+            />
+            {recording ? "Recording in progress" : "Ready when you are"}
+          </div>
 
-          {status === "recording"
-            ? "Recording in progress"
-            : status === "finished"
-              ? "Recording completed"
-              : status === "processing"
-                ? "Preparing your audio..."
-                : "Ready when you are"}
-        </div>
+          <div className="recording-timer">
+            {formatTime(seconds)}
+            <span className="timer-limit"> / {formatTime(TIME_LIMIT)}</span>
+          </div>
 
-        <div
-          className={`recording-timer ${status === "recording" &&
-            TIME_LIMIT - seconds <= 10
-            ? "near-limit"
-            : ""
-            }`}
-        >
-          {formatTime(seconds)}
-          <span className="timer-limit">
-            {" "}/ {formatTime(TIME_LIMIT)}
-          </span>
-        </div>
-
-        {status === "idle" && (
-          <>
-            <button
-              className="record-button"
-              onClick={startRecording}
-            >
+          {!recording ? (
+            <button className="record-button" onClick={startRecording}>
               <Mic size={19} />
-              Start recording
+              {stage === "first" ? "Start recording" : "Record second attempt"}
             </button>
-
-            <p className="time-limit-notice">
-              Maximum duration: {formatTime(TIME_LIMIT)}.
-            </p>
-          </>
-        )}
-
-        {status === "recording" && (
-          <button
-            className="record-button stop-button"
-            onClick={stopRecording}
-          >
-            <Square size={17} />
-            Stop recording
-          </button>
-        )}
-
-        {status === "processing" && (
-          <p className="recording-message">
-            Please wait...
-          </p>
-        )}
-
-        {status === "finished" && audioUrl && (
-          <div className="audio-result">
-            <div className="audio-result-heading">
-              <CheckCircle2 size={18} />
-              Your contribution is ready to listen to.
-            </div>
-
-            <audio controls src={audioUrl} />
-
+          ) : (
             <button
-              className="retry-button"
-              onClick={recordAgain}
+              className="record-button stop-button"
+              onClick={stopRecording}
             >
+              <Square size={17} />
+              Stop recording
+            </button>
+          )}
+
+          <p className="time-limit-notice">
+            Maximum duration: {formatTime(TIME_LIMIT)}.
+          </p>
+        </div>
+      )}
+
+      {stage === "first-ready" && (
+        <div className="recording-panel">
+          <div className="audio-result-heading">
+            <CheckCircle2 size={18} />
+            Your first contribution is ready.
+          </div>
+
+          {renderAudioPlayer("First attempt", firstAudioUrl)}
+
+          <div className="vox-action-row">
+            <button className="retry-button" onClick={discardCurrentAudio}>
               <RotateCcw size={16} />
               Record again
             </button>
+
+            <button
+              className="ai-reflection-button"
+              onClick={() => sendToGemini("analyze")}
+              disabled={loading}
+            >
+              <Sparkles size={16} />
+              {loading ? "Gemini is analysing..." : "Send to Gemini"}
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {infoMessage && (
-          <div className="recording-info-message">
-            <Info size={17} />
-            <span>{infoMessage}</span>
-          </div>
-        )}
+      {stage === "first-feedback" && (
+        <>
+          {renderAudioPlayer("Listen to your first attempt", firstAudioUrl)}
+          {renderFeedbackSection("Feedback on your first attempt", feedback)}
 
-        {error && (
-          <div className="recording-error">
-            <AlertCircle size={17} />
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
+          <button className="ai-reflection-button" onClick={startSecondAttempt}>
+            <RotateCcw size={16} />
+            Try again
+            <ArrowRight size={16} />
+          </button>
+        </>
+      )}
 
-      {status === "finished" && audioUrl && (
-        <section className="reflection-section">
-          <div className="reflection-heading">
-            <span className="speaking-kicker">
-              STEP 04 · REFLECT
-            </span>
-
-            <h3>Go further with your thinking.</h3>
-
-            <p>
-              Listen to your contribution. Choose one lens
-              and think about what you could clarify,
-              develop or reconsider.
-            </p>
-          </div>
-
-          <div className="reflection-lenses">
-            {reflectionLenses.map((lens) => {
-              const Icon = lens.icon;
-
-              return (
-                <button
-                  type="button"
-                  key={lens.id}
-                  className={`reflection-lens ${selectedLens === lens.id
-                    ? "selected"
-                    : ""
-                    }`}
-                  onClick={() => chooseLens(lens.id)}
-                  aria-pressed={selectedLens === lens.id}
-                >
-                  <span className="reflection-lens-icon">
-                    <Icon size={18} />
-                  </span>
-
-                  <span className="reflection-lens-copy">
-                    <strong>{lens.title}</strong>
-                    <small>{lens.description}</small>
-                  </span>
-                </button>
-              );
-            })}
+      {stage === "second-ready" && (
+        <div className="recording-panel">
+          <div className="audio-result-heading">
+            <CheckCircle2 size={18} />
+            Your second contribution is ready.
           </div>
 
-          {activeLens && (
-            <div className="reflection-prompt-card">
-              <span className="reflection-prompt-label">
-                YOUR THINKING PROMPT
-              </span>
+          {renderAudioPlayer("First attempt", firstAudioUrl)}
+          {renderAudioPlayer("Second attempt", secondAudioUrl)}
 
-              <p>{activeLens.prompt}</p>
+          <div className="vox-action-row">
+            <button className="retry-button" onClick={discardCurrentAudio}>
+              <RotateCcw size={16} />
+              Record second attempt again
+            </button>
 
-              <small>{activeLens.routine}</small>
-
-              <label className="reflection-field">
-                <span>MY REFLECTION</span>
-
-                <textarea
-                  rows={4}
-                  value={reflection}
-                  onChange={(event) => {
-                    setReflection(event.target.value);
-                    setReflectionSaved(false);
-                    setAiFeedback("");
-                    setAiError("");
-                    setAiStatus("");
-                  }}
-                  placeholder="After listening to my contribution, I think..."
-                />
-              </label>
-
-              <div className="reflection-actions">
-                {reflectionSaved && (
-                  <span className="reflection-saved">
-                    <CheckCircle2 size={16} />
-                    Reflection saved in this activity.
-                  </span>
-                )}
-
-                <div className="reflection-buttons">
-                  <button
-                    type="button"
-                    className="reflection-save-button"
-                    onClick={saveReflection}
-                    disabled={!reflection.trim()}
-                  >
-                    <Save size={16} />
-                    Save reflection
-                  </button>
-
-                  <button
-                    type="button"
-                    className="ai-reflection-button"
-                    onClick={exploreThinking}
-                    disabled={!reflection.trim() || aiLoading}
-                  >
-                    <Sparkles size={16} />
-                    {aiLoading ? "Thinking..." : "Explore my thinking"}
-                  </button>
-                </div>
-              </div>
-
-              {aiLoading && (
-                <div className="ai-loading">
-                  <Sparkles size={17} />
-                  VOX is exploring your idea...
-                </div>
-              )}
-
-              {aiFeedback && (
-                <div className={`ai-feedback ai-feedback-${aiStatus}`}>
-                  <div className="ai-feedback-heading">
-                    <Sparkles size={17} />
-
-                    <strong>
-                      {aiStatus === "ready" && "A question to take your thinking further"}
-                      {aiStatus === "needs_development" && "Let's develop your idea"}
-                      {aiStatus === "unclear" && "Let's make your thinking clearer"}
-                      {aiStatus === "off_topic" && "Let's connect your idea to the challenge"}
-                    </strong>
-                  </div>
-
-                  <p>{aiFeedback}</p>
-                </div>
-              )}
-
-              {aiError && (
-                <div className="ai-error">
-                  <AlertCircle size={17} />
-                  {aiError}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="reflection-footer">
-            <Brain size={17} />
-
-            <p>
-              There are no scores here. The goal is to notice
-              how your thinking develops and decide what
-              you might try next.
-            </p>
+            <button
+              className="ai-reflection-button"
+              onClick={() => sendToGemini("compare")}
+              disabled={loading}
+            >
+              <Sparkles size={16} />
+              {loading ? "Comparing recordings..." : "Compare both attempts"}
+            </button>
           </div>
-        </section>
+        </div>
+      )}
+
+      {stage === "comparison" && (
+        <>
+          <section className="vox-recordings">
+            <h3>Your recordings</h3>
+            {renderAudioPlayer("First attempt", firstAudioUrl)}
+            {renderAudioPlayer("Second attempt", secondAudioUrl)}
+          </section>
+
+          {renderFeedbackSection("Your progress: a comparison", comparison)}
+
+          <div className="vox-action-row">
+            <button className="retry-button" onClick={restartActivity}>
+              <RotateCcw size={16} />
+              New attempt
+            </button>
+
+            {onBack && (
+              <button className="ai-reflection-button" onClick={onBack}>
+                Back to Challenges
+                <ArrowRight size={16} />
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {loading && (
+        <div className="ai-loading">
+          <Sparkles size={17} />
+          {stage === "first-ready"
+            ? "VOX is listening to your contribution..."
+            : "VOX is comparing both recordings..."}
+        </div>
+      )}
+
+      {error && (
+        <div className="recording-error">
+          <AlertCircle size={17} />
+          <span>{error}</span>
+        </div>
       )}
 
       <div className="speaking-privacy">
         <Headphones size={17} />
-
         <span>
-          Your recording and reflection stay in this browser
-          session. They are not uploaded to a server.
+          Your recordings are used to generate feedback for this activity.
         </span>
       </div>
     </section>
