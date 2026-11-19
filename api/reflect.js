@@ -1,5 +1,16 @@
 
 const MODEL = "gemini-3.5-flash-lite";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+const VALID_MIME_TYPES = [
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/wav",
+];
+
+const MAX_AUDIO_BASE64_LENGTH = 4_000_000;
 
 async function fetchWithRetry(url, options, maxAttempts = 3) {
   const retryableStatuses = [429, 500, 502, 503, 504];
@@ -14,21 +25,713 @@ async function fetchWithRetry(url, options, maxAttempts = 3) {
       return response;
     }
 
-    const delay = 2000 * attempt;
+    await new Promise((resolve) =>
+      setTimeout(resolve, 1500 * attempt)
+    );
+  }
 
-    console.log(
-      `Gemini returned ${response.status}. Retrying in ${delay / 1000}s...`
+  throw new Error("Gemini request failed.");
+}
+
+function isValidAudio(value) {
+  return (
+    typeof value === "string" &&
+    value.length > 100 &&
+    value.length <= MAX_AUDIO_BASE64_LENGTH &&
+    /^[A-Za-z0-9+/]+={0,2}$/.test(value)
+  );
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function quoteExists(quote, transcript) {
+  if (
+    typeof quote !== "string" ||
+    !quote.trim() ||
+    typeof transcript !== "string"
+  ) {
+    return false;
+  }
+
+  const normalizedQuote = normalizeText(quote);
+  const normalizedTranscript = normalizeText(transcript);
+
+  // Very short quotations are not reliable evidence.
+  if (normalizedQuote.split(" ").length < 3) {
+    return false;
+  }
+
+  return normalizedTranscript.includes(normalizedQuote);
+}
+
+function cleanEvidenceItems(items, transcript) {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .filter(
+      (item) =>
+        item &&
+        typeof item.claim === "string" &&
+        item.claim.trim() &&
+        quoteExists(item.evidence, transcript)
+    )
+    .map((item) => item.claim.trim());
+}
+
+function cleanComparisonItems(items, firstTranscript, secondTranscript) {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .filter(
+      (item) =>
+        item &&
+        typeof item.claim === "string" &&
+        item.claim.trim() &&
+        quoteExists(item.firstEvidence, firstTranscript) &&
+        quoteExists(item.secondEvidence, secondTranscript)
+    )
+    .map((item) => item.claim.trim());
+}
+
+async function callGemini(apiKey, parts, maxOutputTokens = 1800) {
+  const response = await fetchWithRetry(GEMINI_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts,
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error(
+      "Gemini API error:",
+      response.status,
+      JSON.stringify(data.error || data)
     );
 
-    await new Promise(resolve => setTimeout(resolve, delay));
+    throw new Error(
+      data.error?.message || "The AI service could not complete the request."
+    );
   }
+
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || "")
+    .join("")
+    .trim();
+
+  if (!text) {
+    throw new Error("Gemini returned an empty response.");
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error("Gemini returned invalid JSON:", text);
+    throw new Error("The AI returned an invalid response.");
+  }
+}
+
+async function transcribeAudio(apiKey, audio, mimeType) {
+  const result = await callGemini(
+    apiKey,
+    [
+      {
+        text: `
+Transcribe the attached audio recording as accurately as possible.
+
+STRICT RULES:
+- Write only words that you can actually hear.
+- Preserve the original language.
+- Do not translate, summarize, correct grammar or improve sentences.
+- Do not complete unfinished sentences.
+- Do not infer missing words from context.
+- Mark genuinely unintelligible sections as [unclear].
+- Preserve negations, contrasts and expressions of disagreement.
+- Do not include the activity question as if it were spoken by the student.
+- Do not evaluate the student.
+
+Return JSON in this exact format:
+{
+  "transcription": "The words actually heard in the recording."
+}
+
+If there is no intelligible speech, return an empty transcription.
+`,
+      },
+      {
+        inlineData: {
+          mimeType,
+          data: audio,
+        },
+      },
+    ],
+    1800
+  );
+
+  if (typeof result.transcription !== "string") {
+    throw new Error("The transcription could not be read.");
+  }
+
+  return result.transcription.trim();
+}
+
+function getAnalysisPrompt({
+  question,
+  subject,
+  language,
+  cefrLevel,
+  transcription,
+}) {
+  return `
+You are VOX, an educational oral-learning companion.
+
+Your purpose is to help students develop their thinking and communicate
+their ideas. You are not an examiner. Do not grade or assign scores.
+
+ACTIVITY QUESTION:
+${question}
+
+SUBJECT:
+${subject}
+
+ACTIVITY LANGUAGE:
+${language}
+
+CEFR LEVEL:
+${cefrLevel}
+
+STUDENT TRANSCRIPTION:
+"""
+${transcription}
+"""
+
+YOUR FIRST TASK: DETERMINE RELEVANCE.
+
+Decide whether the student's actual contribution addresses the activity.
+
+Use:
+- "relevant" if the contribution clearly addresses the question or task.
+- "off_topic" if the contribution does not meaningfully address it.
+- "unclear" if there is not enough intelligible information to decide.
+
+Do not force an interpretation.
+Do not invent a connection between unrelated content and the activity.
+Do not assume that the student agrees with the question.
+Pay special attention to negations, contrasts and qualifications.
+
+EVIDENCE RULES:
+
+Every strength and every development suggestion must be supported
+by a short, exact quotation copied from the transcription.
+
+The quotation must:
+- Contain words that actually appear in the transcription.
+- Be copied without paraphrasing.
+- Support the claim being made.
+
+Never invent quotations.
+Never claim that the student provided a reason, example, argument
+or perspective unless the transcription contains it.
+
+A concise contribution can contain valid reasoning.
+Do not mistake brevity for lack of thought.
+
+FEEDBACK RULES:
+
+If relevance is "off_topic":
+- Do not invent strengths about the activity's content.
+- Do not pretend the student answered the question.
+- Explain briefly that the contribution does not address the challenge.
+- Ask one neutral question that helps the student return to the task.
+- Do not criticize the student's unrelated topic.
+
+If relevance is "unclear":
+- Say that there is not enough information to understand the contribution.
+- Do not infer the student's position.
+- Ask the student to clarify what they meant.
+
+If relevance is "relevant":
+- Identify the student's actual position or interpretation.
+- Recognize what the student has already achieved.
+- Distinguish between something missing and something present
+  but capable of further development.
+- Give only specific suggestions that follow from the actual words.
+- Do not ask for something the student has already provided.
+
+NEXT QUESTION:
+Ask one question that builds on the student's actual contribution.
+Do not simply repeat the activity question.
+
+NEXT STEP:
+Give one practical, achievable suggestion for the next attempt.
+
+ORAL COMMUNICATION:
+This step evaluates the transcription, not the audio delivery.
+Do not make claims about pronunciation, accent, rhythm, pauses,
+volume, fluency or intelligibility.
+Return an empty oralCommunication array.
+
+LANGUAGE:
+Write all feedback in ${language}.
+Do not switch languages.
+Adapt vocabulary and complexity to CEFR ${cefrLevel} when the
+activity is in English. Do not simplify the intellectual challenge.
+
+Return ONLY valid JSON with this structure:
+{
+  "relevance": "relevant | off_topic | unclear",
+  "identifiedPosition": "The student's actual position, or an honest statement that it is unclear.",
+  "positionEvidence": "An exact quotation supporting the identified position, or an empty string.",
+  "positionConfidence": "high | medium | low",
+  "strengths": [
+    {
+      "claim": "A specific strength.",
+      "evidence": "An exact quotation from the transcription."
+    }
+  ],
+  "development": [
+    {
+      "claim": "A specific development suggestion.",
+      "evidence": "An exact quotation from the transcription."
+    }
+  ],
+  "oralCommunication": [],
+  "nextQuestion": "One relevant question.",
+  "nextStep": "One practical suggestion.",
+  "message": "A short explanation if the contribution is off-topic or unclear. Otherwise an empty string."
+}
+
+If relevance is "off_topic" or "unclear", use empty strengths and development arrays.
+If no evidence supports a claim, do not include that claim.
+`;
+}
+
+function getComparisonPrompt({
+  question,
+  subject,
+  language,
+  cefrLevel,
+  firstTranscript,
+  secondTranscript,
+}) {
+  return `
+You are VOX, an educational oral-learning companion.
+
+Compare TWO contributions from the SAME student.
+The second contribution was recorded after the student received feedback.
+
+ACTIVITY QUESTION:
+${question}
+
+SUBJECT:
+${subject}
+
+ACTIVITY LANGUAGE:
+${language}
+
+CEFR LEVEL:
+${cefrLevel}
+
+FIRST TRANSCRIPTION:
+"""
+${firstTranscript}
+"""
+
+SECOND TRANSCRIPTION:
+"""
+${secondTranscript}
+"""
+
+YOUR TASK:
+
+Compare what the student actually said in both recordings.
+Do not assume that the second attempt is better.
+
+A longer answer is not automatically an improvement.
+More words, repetition or a different topic are not evidence of progress.
+A simpler answer is not automatically worse.
+
+RELEVANCE:
+Determine whether each contribution addresses the activity.
+Do not invent a connection between unrelated content and the question.
+
+EVIDENCE REQUIREMENTS:
+
+Every comparison claim MUST include:
+- firstEvidence: an exact quotation from the first transcription.
+- secondEvidence: an exact quotation from the second transcription.
+
+Both quotations must contain at least three words and must be copied
+exactly from their respective transcriptions.
+
+Only report a change when BOTH quotations support the comparison.
+Do not invent progress.
+Do not compare an idea that is absent from one recording.
+Do not treat a different wording as deeper reasoning unless the
+actual content supports that interpretation.
+
+Compare:
+1. Development of ideas and reasoning.
+2. Use of examples or evidence.
+3. Interpretation and relevance.
+4. Connections or alternative perspectives.
+5. Clarity and organization of ideas.
+
+Do not evaluate pronunciation, pauses, rhythm, accent, volume,
+fluency or other audio characteristics from a transcription.
+Return an empty oralCommunication array.
+
+POSSIBLE CONCLUSIONS:
+- "progress": at least one meaningful improvement is supported
+  by evidence from both recordings.
+- "no_significant_change": the recordings do not show a meaningful
+  improvement in the aspects assessed.
+- "insufficient_evidence": one or both recordings are too unclear,
+  too short or too unrelated to establish a fair comparison.
+
+Do not use "progress" merely because the second answer is longer.
+
+LANGUAGE:
+Write all feedback in ${language}.
+Adapt complexity to CEFR ${cefrLevel} when the activity is in English.
+Do not switch languages.
+
+Return ONLY valid JSON:
+{
+  "conclusion": "progress | no_significant_change | insufficient_evidence",
+  "changes": [
+    {
+      "claim": "A specific meaningful change.",
+      "firstEvidence": "Exact quotation from the first transcription.",
+      "secondEvidence": "Exact quotation from the second transcription."
+    }
+  ],
+  "reasoning": [
+    {
+      "claim": "A comparison of the student's reasoning.",
+      "firstEvidence": "Exact quotation from the first transcription.",
+      "secondEvidence": "Exact quotation from the second transcription."
+    }
+  ],
+  "pending": [
+    {
+      "claim": "An aspect that remains to be developed, supported by both attempts.",
+      "firstEvidence": "Exact quotation from the first transcription.",
+      "secondEvidence": "Exact quotation from the second transcription."
+    }
+  ],
+  "oralCommunication": [],
+  "nextStep": "One practical suggestion based on the comparison.",
+  "message": "A concise, honest summary of the comparison."
+}
+
+If you cannot support a comparison with quotations from BOTH recordings,
+do not include it.
+`;
+}
+
+async function analyzeRecording(apiKey, {
+  audio,
+  mimeType,
+  question,
+  subject,
+  language,
+  cefrLevel,
+}) {
+  const transcription = await transcribeAudio(apiKey, audio, mimeType);
+
+  if (!transcription || normalizeText(transcription).length < 3) {
+    return {
+      transcription,
+      result: {
+        identifiedPosition:
+          language === "Spanish"
+            ? "No se pudo identificar una intervención oral comprensible."
+            : "No intelligible oral contribution could be identified.",
+        positionConfidence: "low",
+        evidence: [],
+        strengths: [],
+        development: [],
+        oralCommunication: [],
+        nextQuestion:
+          language === "Spanish"
+            ? "¿Podés volver a expresar tu idea?"
+            : "Could you try expressing your idea again?",
+        nextStep:
+          language === "Spanish"
+            ? "Grabá nuevamente tu respuesta."
+            : "Please record your response again.",
+        message:
+          language === "Spanish"
+            ? "No se pudo obtener una transcripción comprensible."
+            : "A comprehensible transcription could not be obtained.",
+        transcription,
+      },
+    };
+  }
+
+  const analysis = await callGemini(
+    apiKey,
+    [
+      {
+        text: getAnalysisPrompt({
+          question,
+          subject,
+          language,
+          cefrLevel,
+          transcription,
+        }),
+      },
+    ]
+  );
+
+  const relevance = ["relevant", "off_topic", "unclear"].includes(
+    analysis.relevance
+  )
+    ? analysis.relevance
+    : "unclear";
+
+  const positionEvidence = quoteExists(
+    analysis.positionEvidence,
+    transcription
+  )
+    ? analysis.positionEvidence
+    : "";
+
+  const positionConfidence = positionEvidence
+    ? ["high", "medium", "low"].includes(analysis.positionConfidence)
+      ? analysis.positionConfidence
+      : "medium"
+    : "low";
+
+  const canEvaluateContent = relevance === "relevant";
+
+  const strengths = canEvaluateContent
+    ? cleanEvidenceItems(analysis.strengths, transcription)
+    : [];
+
+  const development = canEvaluateContent
+    ? cleanEvidenceItems(analysis.development, transcription)
+    : [];
+
+  const evidence = positionEvidence ? [positionEvidence] : [];
+
+  const result = {
+    identifiedPosition:
+      positionEvidence && typeof analysis.identifiedPosition === "string"
+        ? analysis.identifiedPosition
+        : language === "Spanish"
+          ? "No se pudo identificar una postura con suficiente evidencia."
+          : "A position could not be identified with sufficient evidence.",
+
+    positionConfidence,
+
+    evidence,
+    strengths,
+    development,
+
+    // Delivery characteristics are not assessed from a transcript.
+    oralCommunication: [],
+
+    nextQuestion:
+      typeof analysis.nextQuestion === "string"
+        ? analysis.nextQuestion
+        : "",
+
+    nextStep:
+      typeof analysis.nextStep === "string"
+        ? analysis.nextStep
+        : "",
+
+    message:
+      typeof analysis.message === "string"
+        ? analysis.message
+        : "",
+
+    transcription,
+  };
+
+  if (relevance !== "relevant") {
+    result.strengths = [];
+    result.development = [];
+    result.evidence = [];
+  }
+
+  return {
+    transcription,
+    result,
+  };
+}
+
+async function compareRecordings(apiKey, {
+  firstAudio,
+  secondAudio,
+  mimeType,
+  question,
+  subject,
+  language,
+  cefrLevel,
+}) {
+  // Transcribe each recording independently.
+  const firstTranscript = await transcribeAudio(
+    apiKey,
+    firstAudio,
+    mimeType
+  );
+
+  const secondTranscript = await transcribeAudio(
+    apiKey,
+    secondAudio,
+    mimeType
+  );
+
+  if (
+    normalizeText(firstTranscript).length < 3 ||
+    normalizeText(secondTranscript).length < 3
+  ) {
+    return {
+      changes: [],
+      reasoning: [],
+      pending: [],
+      oralCommunication: [],
+      nextStep:
+        language === "Spanish"
+          ? "Intentá realizar ambas intervenciones nuevamente para poder compararlas."
+          : "Try recording both contributions again so they can be compared.",
+      message:
+        language === "Spanish"
+          ? "No hay suficiente información comprensible en ambas grabaciones para realizar una comparación."
+          : "There is not enough intelligible information in both recordings to make a comparison.",
+      conclusion: "insufficient_evidence",
+      evidence: [],
+    };
+  }
+
+  const analysis = await callGemini(
+    apiKey,
+    [
+      {
+        text: getComparisonPrompt({
+          question,
+          subject,
+          language,
+          cefrLevel,
+          firstTranscript,
+          secondTranscript,
+        }),
+      },
+    ],
+    2200
+  );
+
+  const changes = cleanComparisonItems(
+    analysis.changes,
+    firstTranscript,
+    secondTranscript
+  );
+
+  const reasoning = cleanComparisonItems(
+    analysis.reasoning,
+    firstTranscript,
+    secondTranscript
+  );
+
+  const pending = cleanComparisonItems(
+    analysis.pending,
+    firstTranscript,
+    secondTranscript
+  );
+
+  let conclusion = [
+    "progress",
+    "no_significant_change",
+    "insufficient_evidence",
+  ].includes(analysis.conclusion)
+    ? analysis.conclusion
+    : "insufficient_evidence";
+
+  // Gemini cannot declare progress if no comparison claim
+  // survives the quotation validation.
+  if (conclusion === "progress" && changes.length === 0 && reasoning.length === 0) {
+    conclusion = "no_significant_change";
+  }
+
+  const evidence = [];
+
+  if (Array.isArray(analysis.changes)) {
+    for (const item of analysis.changes) {
+      if (
+        quoteExists(item?.firstEvidence, firstTranscript) &&
+        quoteExists(item?.secondEvidence, secondTranscript)
+      ) {
+        evidence.push(
+          language === "Spanish"
+            ? `Primer intento: "${item.firstEvidence}" / Segundo intento: "${item.secondEvidence}"`
+            : `First attempt: "${item.firstEvidence}" / Second attempt: "${item.secondEvidence}"`
+        );
+      }
+    }
+  }
+
+  let message =
+    typeof analysis.message === "string" ? analysis.message : "";
+
+  if (conclusion === "no_significant_change" && changes.length === 0) {
+    message =
+      language === "Spanish"
+        ? "No encontramos evidencia suficiente de un cambio significativo entre los dos intentos. Esto no significa que hayas empeorado: significa que no podemos afirmar una mejora con estas grabaciones."
+        : "There is not enough evidence of a significant change between the two attempts. This does not mean you did worse; it means we cannot claim improvement based on these recordings.";
+  }
+
+  if (conclusion === "insufficient_evidence") {
+    message =
+      language === "Spanish"
+        ? "No hay suficiente evidencia en ambas grabaciones para establecer una comparación justa."
+        : "There is not enough evidence in both recordings to make a fair comparison.";
+  }
+
+  return {
+    changes,
+    reasoning,
+    pending,
+    oralCommunication: [],
+    nextStep:
+      typeof analysis.nextStep === "string" ? analysis.nextStep : "",
+    message,
+    conclusion,
+    evidence,
+  };
 }
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed." });
+    return res.status(405).json({
+      error: "Method not allowed.",
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -51,25 +754,11 @@ export default async function handler(req, res) {
     subject = "General",
   } = req.body || {};
 
-  const validMimeTypes = [
-    "audio/webm",
-    "audio/ogg",
-    "audio/mp4",
-    "audio/mpeg",
-    "audio/wav",
-  ];
-
-  if (!validMimeTypes.includes(mimeType)) {
+  if (!["analyze", "compare"].includes(action)) {
     return res.status(400).json({
-      error: "Unsupported audio format.",
+      error: "Invalid action. Use analyze or compare.",
     });
   }
-
-  const isValidAudio = (value) =>
-    typeof value === "string" &&
-    value.length > 100 &&
-    value.length <= 4_000_000 &&
-    /^[A-Za-z0-9+/]+={0,2}$/.test(value);
 
   if (
     typeof question !== "string" ||
@@ -81,517 +770,73 @@ export default async function handler(req, res) {
     });
   }
 
-  let prompt;
-  let audioParts;
-
-  if (action === "analyze") {
-    if (!isValidAudio(audio)) {
-      return res.status(400).json({
-        error: "Please provide a valid first recording.",
-      });
-    }
-
-
-    prompt = `
-You are VOX, an educational oral-feedback companion.
-
-Analyze the attached AUDIO RECORDING directly.
-The audio is the PRIMARY and ONLY evidence of the student's
-actual oral contribution.
-
-ACTIVITY QUESTION:
-${question}
-
-SUBJECT:
-${subject}
-
-LANGUAGE:
-${language}
-
-CEFR LEVEL:
-${cefrLevel}
-
-CRITICAL: ACCURATE UNDERSTANDING COMES FIRST.
-
-Before giving feedback, perform these steps internally:
-
-STEP 1 — IDENTIFY WHAT THE STUDENT ACTUALLY SAID.
-- Carefully identify the student's main position or interpretation.
-- Distinguish the student's position from the question, examples,
-  hypothetical ideas, and opposing viewpoints they may mention.
-- Do not assume the student agrees with the statement in the prompt.
-- Do not complete missing ideas or infer an unstated opinion.
-- If possible, identify a short exact phrase from the recording
-  that supports your interpretation.
-
-STEP 2 — VERIFY YOUR INTERPRETATION.
-- Check that the identified position is consistent with the
-  student's actual words.
-- If the audio does not support a clear interpretation,
-  explicitly state that the position is unclear.
-- Never replace an unclear or unexpected position with a
-  more conventional or likely answer.
-- If you cannot confidently identify the position, do not
-  generate feedback that assumes one.
-
-STEP 3 — GIVE FEEDBACK.
-Base every observation on the recording.
-Do not invent arguments, examples, evidence, or pronunciation errors.
-
-Consider:
-
-1. THINKING AND CONTENT
-- Position or interpretation expressed.
-- Reasons, examples and evidence.
-- Connections and alternative perspectives.
-- Relevance to the activity.
-
-2. ORGANIZATION AND CLARITY
-- How clearly ideas are communicated.
-- How ideas are connected and developed.
-
-3. ORAL COMMUNICATION AND INTELLIGIBILITY
-- Understandability of speech.
-- Articulation, rhythm, pauses, pronunciation, volume or fluency
-  ONLY when audible and relevant to comprehension.
-- Never treat an accent or regional variety as an error.
-- A pause is not automatically a problem.
-
-IMPORTANT RULES:
-- Do not confuse the student's position with the opposite position.
-- Do not evaluate an argument the student did not make.
-- Do not let pronunciation dominate the evaluation of thinking.
-- Adapt language to CEFR ${cefrLevel}.
-- Keep the intellectual challenge unchanged.
-- Be supportive, specific and constructive.
-- Do not grade or assign a score.
-- If the recording is too unclear to assess, say so honestly.
-
-If the student's position is unclear, the next question must
-ask them to clarify their actual position rather than assume it.
-
-Respond in ${language === "Spanish" ? "Spanish" : "English"}.
-
-Return ONLY valid JSON:
-
-{
-  "status": "ready",
-  "transcription": "A concise, faithful transcription of the relevant spoken ideas.",
-  "identifiedPosition": "The position the student actually expressed, or explicitly unclear.",
-  "positionConfidence": "high | medium | low",
-  "evidence": ["A short phrase or specific audible evidence supporting the interpretation."],
-  "strengths": ["Specific strength supported by the recording."],
-  "development": ["Specific aspect to develop, supported by the recording."],
-  "oralCommunication": ["Audible communication observation, if relevant."],
-  "nextQuestion": "One specific follow-up question.",
-  "nextStep": "One practical suggestion for the next attempt."
-}
-
-If confidence is low, do not present an inferred position as fact.
-Use empty arrays when no observation is supported by the audio.
-`;
-
-
-    audioParts = [
-      {
-        inlineData: {
-          mimeType,
-          data: audio,
-        },
-      },
-    ];
-  } else if (action === "compare") {
-    if (!isValidAudio(firstAudio) || !isValidAudio(secondAudio)) {
-      return res.status(400).json({
-        error: "Both recordings are required for comparison.",
-      });
-    }
-
-    prompt = `
-You are VOX, an educational oral-learning companion.
-
-You will receive TWO recordings from the SAME student.
-Compare them carefully.
-
-FIRST RECORDING:
-The student's initial oral contribution.
-
-SECOND RECORDING:
-The student's revised oral contribution after receiving feedback.
-
-ACTIVITY QUESTION:
-${question}
-
-SUBJECT:
-${subject}
-
-LANGUAGE:
-${language}
-
-CEFR LEVEL:
-${cefrLevel}
-
-Compare the recordings using these dimensions:
-
-1. THINKING AND CONTENT
-- Development of ideas.
-- Reasons, examples and evidence.
-- Interpretation and relevance.
-- Connections and alternative perspectives.
-
-2. ORGANIZATION AND CLARITY
-- Structure and connection between ideas.
-- How clearly the contribution communicates its meaning.
-
-3. ORAL COMMUNICATION AND INTELLIGIBILITY
-- Understandability of the speech.
-- Articulation, rhythm, pauses, pronunciation, volume
-  or fluency ONLY when audible and relevant to comprehension.
-
-STRICT EVIDENCE RULES:
-- Report only changes that can be heard in the recordings.
-- Never invent progress.
-- Do not assume the second recording is better.
-- Explicitly identify when there is no significant change.
-- If an aspect cannot be assessed, say so.
-- Distinguish a change in ideas from a change in delivery.
-- Do not treat accent or regional pronunciation as an error.
-- Do not interpret pauses automatically as mistakes.
-- Do not penalize the student for using simpler language.
-- Keep the intellectual challenge unchanged.
-- Adapt your feedback language to CEFR ${cefrLevel}.
-- Never grade or assign a score.
-
-Respond in ${language === "Spanish" ? "Spanish" : "English"}.
-
-Return ONLY valid JSON:
-
-{
-  "overallChange": "A concise evidence-based comparison.",
-  "thinkingChanges": ["observable change in thinking"],
-  "communicationChanges": ["observable change in oral communication"],
-  "maintainedStrengths": ["strength maintained across attempts"],
-  "stillToDevelop": ["aspect that remains to be developed"],
-  "nextStep": "one useful suggestion for future participation",
-  "conclusion": "progress | no_significant_change | insufficient_evidence"
-}
-
-Do not claim progress unless the recordings support it.
-Use empty arrays when no change or observation can be established.
-`;
-
-    audioParts = [
-      {
-        inlineData: {
-          mimeType,
-          data: firstAudio,
-        },
-      },
-      {
-        inlineData: {
-          mimeType,
-          data: secondAudio,
-        },
-      },
-    ];
-  } else {
+  if (!VALID_MIME_TYPES.includes(mimeType)) {
     return res.status(400).json({
-      error: "Invalid action. Use analyze or compare.",
+      error: "Unsupported audio format.",
     });
   }
 
+  if (
+    typeof language !== "string" ||
+    !["English", "Spanish"].includes(language)
+  ) {
+    return res.status(400).json({
+      error: "Unsupported activity language.",
+    });
+  }
+
+  if (action === "analyze" && !isValidAudio(audio)) {
+    return res.status(400).json({
+      error: "Please provide a valid recording.",
+    });
+  }
+
+  if (
+    action === "compare" &&
+    (!isValidAudio(firstAudio) || !isValidAudio(secondAudio))
+  ) {
+    return res.status(400).json({
+      error: "Both recordings are required for comparison.",
+    });
+  }
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-
-    // STEP 1: TRANSCRIBE THE AUDIO
-    const transcriptionResponse = await fetchWithRetry(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `
-Transcribe the attached audio recording as accurately as possible.
-
-Rules:
-- Write only words that you can actually hear.
-- Preserve the student's original language.
-- Do not translate, summarize, correct grammar or improve sentences.
-- Do not complete unfinished sentences.
-- Do not infer missing words from context.
-- Mark genuinely unintelligible sections as [unclear].
-- Preserve negations, contrasts and expressions of disagreement.
-- Do not confuse the activity question with the student's answer.
-
-Return only the transcription. No comments or evaluation.
-`,
-              },
-              {
-                inlineData: {
-                  mimeType,
-                  data: audio,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 1500,
-        },
-      }),
-    });
-
-    const transcriptionData = await transcriptionResponse.json();
-
-    if (!transcriptionResponse.ok) {
-      console.error(
-        "Gemini transcription error:",
-        transcriptionResponse.status,
-        JSON.stringify(transcriptionData.error || transcriptionData)
-      );
-
-      return res.status(502).json({
-        error: "The audio transcription could not be completed.",
-        details: transcriptionData.error?.message || "Unknown Gemini error.",
-      });
-    }
-
-    const transcription = transcriptionData.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
-      .join("")
-      .trim();
-
-    if (!transcription) {
-      return res.status(502).json({
-        error: "Gemini could not transcribe the recording.",
-      });
-    }
-
-    // STEP 2: ANALYZE THE TRANSCRIPTION
-    let analysisPrompt;
-
     if (action === "analyze") {
+      const analysis = await analyzeRecording(apiKey, {
+        audio,
+        mimeType,
+        question,
+        subject,
+        language,
+        cefrLevel,
+      });
 
-      analysisPrompt = `
-You are VOX, an educational oral-feedback companion.
-
-Your role is to help students develop their thinking and communicate their ideas more effectively. You are not an examiner. Give specific, constructive and evidence-based feedback.
-
-Analyze the student's oral contribution using the transcription below.
-
-ACTIVITY QUESTION:
-${question}
-
-SUBJECT:
-${subject}
-
-LANGUAGE:
-${language}
-
-CEFR LEVEL:
-${cefrLevel}
-
-STUDENT TRANSCRIPTION:
-"""
-${transcription}
-"""
-
-CRITICAL INTERPRETATION RULES:
-
-1. Identify the student's actual position.
-- Do not assume they agree with the question.
-- Distinguish their own position from opposing views they mention.
-- Pay special attention to negations, contrasts and qualifications.
-- Never infer a position that is not supported by the transcription.
-
-2. Evidence:
-- Every interpretation must be supported by exact words from the transcription.
-- Evidence must be copied verbatim.
-- Never invent quotations or rewrite them as if they were exact words.
-- If the transcription does not support an interpretation, say so.
-
-3. Recognize what the student has ALREADY achieved:
-- Before suggesting an improvement, identify whether the student has already included the relevant element.
-- A short statement can contain a valid reason, argument or example.
-- Do not tell students to add a reason if they have already provided one.
-- Do not tell students to give an example if they have already provided one.
-- If an idea is present but insufficiently developed, acknowledge it first and suggest how to expand, explain or illustrate it.
-- For example, if the student says "because there is no planet B", recognize this as a reason. Suggest explaining its implications or providing a concrete example, rather than asking for a reason.
-- Never mistake a concise contribution for an absence of reasoning.
-
-4. Feedback:
-- Evaluate the development of ideas, reasons, examples and perspectives.
-- Evaluate organization and clarity.
-- Distinguish between:
-  a) something that is missing;
-  b) something that is present but could be developed further;
-  c) something that is already effective.
-- Make suggestions specific to this student's actual contribution.
-- Refer to the student's own words whenever possible.
-- Avoid generic advice that could apply to any answer.
-- Do not make the student repeat something they have already said.
-- Do not invent errors or arguments.
-- Do not grade or assign a score.
-- Adapt feedback language to CEFR ${cefrLevel}.
-- Keep the intellectual challenge unchanged.
-
-5. Oral communication:
-- This analysis is based on a transcription.
-- Do not make claims about pronunciation, rhythm, pauses, volume, fluency or intelligibility based on text alone.
-- Return an empty oralCommunication array because these features have not been assessed in this step.
-
-6. If the student's position is unclear:
-- Set positionConfidence to "low".
-- Explicitly state that the position cannot be identified confidently.
-- Do not give feedback based on an assumed position.
-- Ask the student to clarify what they meant.
-
-7. Next question:
-- Ask ONE relevant question that builds directly on the student's actual contribution.
-- Do not ask a question that simply repeats the activity question.
-- Encourage deeper reasoning, an example, a consequence, a connection or an alternative perspective, depending on what is missing or could be developed.
-- Do not ask for something the student has already provided.
-
-8. Next step:
-- Give ONE practical suggestion for the student's next oral attempt.
-- It must address the most useful next improvement, not list several unrelated goals.
-- Make it achievable at the student's CEFR level.
-
-Respond in ${language === "Spanish" ? "Spanish" : "English"}.
-
-Return ONLY valid JSON:
-
-{
-  "identifiedPosition": "The student's actual position, or an explicit statement that it is unclear.",
-  "positionConfidence": "high | medium | low",
-  "evidence": ["Exact quotation copied from the transcription."],
-  "strengths": ["Specific strength supported by the transcription."],
-  "development": ["Specific aspect to develop, acknowledging what the student has already achieved."],
-  "oralCommunication": [],
-  "nextQuestion": "One relevant follow-up question.",
-  "nextStep": "One practical suggestion for the next attempt."
-}
-
-Use empty arrays only when no observation is supported by the transcription.
-If confidence is low, strengths and development must not assume a position.
-`;
-
-    } else {
-      analysisPrompt = `
-You are VOX, an educational oral-learning companion.
-
-Compare the student's TWO oral recordings.
-
-ACTIVITY QUESTION:
-${question}
-
-SUBJECT:
-${subject}
-
-LANGUAGE:
-${language}
-
-CEFR LEVEL:
-${cefrLevel}
-
-FIRST RECORDING TRANSCRIPTION:
-"""
-${transcription}
-"""
-
-The second recording must also be transcribed before comparison.
-Do not infer changes without comparing both actual transcriptions.
-
-Return a JSON response explaining that this comparison action
-requires both recordings to be transcribed and analyzed.
-`;
-      return res.status(400).json({
-        error: "The comparison flow requires its own transcription step. We will implement it separately.",
+      return res.status(200).json({
+        result: analysis.result,
       });
     }
 
-    const analysisResponse = await fetchWithRetry(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: analysisPrompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 1500,
-          responseMimeType: "application/json",
-        },
-      }),
+    const result = await compareRecordings(apiKey, {
+      firstAudio,
+      secondAudio,
+      mimeType,
+      question,
+      subject,
+      language,
+      cefrLevel,
     });
-
-    const analysisData = await analysisResponse.json();
-
-    if (!analysisResponse.ok) {
-      console.error(
-        "Gemini analysis error:",
-        analysisResponse.status,
-        JSON.stringify(analysisData.error || analysisData)
-      );
-
-      return res.status(502).json({
-        error: "The AI service could not analyse the transcription.",
-        details: analysisData.error?.message || "Unknown Gemini error.",
-      });
-    }
-
-    const resultText = analysisData.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
-      .join("")
-      .trim();
-
-    if (!resultText) {
-      return res.status(502).json({
-        error: "The AI returned an empty analysis.",
-      });
-    }
-
-    const result = JSON.parse(resultText);
-
-    const valid =
-      typeof result.identifiedPosition === "string" &&
-      ["high", "medium", "low"].includes(result.positionConfidence) &&
-      Array.isArray(result.evidence) &&
-      Array.isArray(result.strengths) &&
-      Array.isArray(result.development) &&
-      Array.isArray(result.oralCommunication) &&
-      typeof result.nextQuestion === "string" &&
-      typeof result.nextStep === "string";
-
-    if (!valid) {
-      throw new Error("Invalid analysis response.");
-    }
 
     return res.status(200).json({
-      result: {
-        ...result,
-        transcription,
-      },
+      result,
     });
-
   } catch (error) {
-    console.error("VOX audio analysis error:", error.message);
+    console.error("VOX analysis error:", error.message);
 
     return res.status(502).json({
-      error: "Something went wrong while analysing the audio.",
+      error:
+        language === "Spanish"
+          ? "No pudimos analizar las grabaciones. Intentá nuevamente."
+          : "We couldn't analyse the recordings. Please try again.",
     });
   }
-
 }

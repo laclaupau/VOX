@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import {
   Mic,
@@ -14,7 +13,7 @@ import {
 import "./SpeakingStudio.css";
 
 const TIME_LIMIT = 90;
-const MAX_AUDIO_SIZE = 3 * 1024 * 1024;
+const MAX_AUDIO_SIZE = 2.5 * 1024 * 1024;
 
 function SpeakingStudio({
   question,
@@ -43,18 +42,35 @@ function SpeakingStudio({
   const timerRef = useRef(null);
   const attemptRef = useRef(1);
 
+  // Keep track of audio URLs independently from React state.
+  // This prevents the first recording from being revoked
+  // when the second recording is created.
+  const audioUrlsRef = useRef({
+    first: "",
+    second: "",
+  });
+
+  const isSpanish = language?.toLowerCase().startsWith("spanish");
+
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
 
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
-      if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+      if (audioUrlsRef.current.first) {
+        URL.revokeObjectURL(audioUrlsRef.current.first);
+      }
+
+      if (audioUrlsRef.current.second) {
+        URL.revokeObjectURL(audioUrlsRef.current.second);
+      }
     };
-  }, [firstAudioUrl, secondAudioUrl]);
+  }, []);
 
   function formatTime(value) {
     const minutes = Math.floor(value / 60);
@@ -70,7 +86,11 @@ function SpeakingStudio({
     setSeconds(0);
 
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      setError("Your browser does not support audio recording.");
+      setError(
+        isSpanish
+          ? "Tu navegador no permite grabar audio."
+          : "Your browser does not support audio recording."
+      );
       return;
     }
 
@@ -99,20 +119,33 @@ function SpeakingStudio({
 
         if (blob.size > MAX_AUDIO_SIZE) {
           setError(
-            "This recording is too large to analyse. Please record a shorter contribution."
+            isSpanish
+              ? "La grabación es demasiado grande para analizarla. Grabá una intervención más breve."
+              : "This recording is too large to analyse. Please record a shorter contribution."
           );
+
           setRecording(false);
           setStage(attemptRef.current === 1 ? "first" : "second");
         } else {
           const url = URL.createObjectURL(blob);
 
           if (attemptRef.current === 1) {
-            if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+            if (audioUrlsRef.current.first) {
+              URL.revokeObjectURL(audioUrlsRef.current.first);
+            }
+
+            audioUrlsRef.current.first = url;
+
             setFirstAudio(blob);
             setFirstAudioUrl(url);
             setStage("first-ready");
           } else {
-            if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+            if (audioUrlsRef.current.second) {
+              URL.revokeObjectURL(audioUrlsRef.current.second);
+            }
+
+            audioUrlsRef.current.second = url;
+
             setSecondAudio(blob);
             setSecondAudioUrl(url);
             setStage("second-ready");
@@ -121,8 +154,14 @@ function SpeakingStudio({
 
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
+
         setRecording(false);
         setSeconds(0);
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
       };
 
       recorder.start();
@@ -132,7 +171,12 @@ function SpeakingStudio({
         setSeconds((previous) => {
           if (previous + 1 >= TIME_LIMIT) {
             clearInterval(timerRef.current);
-            if (recorder.state === "recording") recorder.stop();
+            timerRef.current = null;
+
+            if (recorder.state === "recording") {
+              recorder.stop();
+            }
+
             return TIME_LIMIT;
           }
 
@@ -142,14 +186,21 @@ function SpeakingStudio({
     } catch (err) {
       setError(
         err.name === "NotAllowedError"
-          ? "Microphone access was denied. Check your browser permissions."
-          : "We couldn't access your microphone. Please try again."
+          ? isSpanish
+            ? "No se permitió el acceso al micrófono. Revisá los permisos del navegador."
+            : "Microphone access was denied. Check your browser permissions."
+          : isSpanish
+            ? "No pudimos acceder al micrófono. Intentá nuevamente."
+            : "We couldn't access your microphone. Please try again."
       );
     }
   }
 
   function stopRecording() {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     if (recorderRef.current?.state === "recording") {
       recorderRef.current.stop();
@@ -158,14 +209,24 @@ function SpeakingStudio({
 
   function discardCurrentAudio() {
     if (stage === "first-ready") {
-      if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
+      if (audioUrlsRef.current.first) {
+        URL.revokeObjectURL(audioUrlsRef.current.first);
+      }
+
+      audioUrlsRef.current.first = "";
+
       setFirstAudio(null);
       setFirstAudioUrl("");
       setStage("first");
     }
 
     if (stage === "second-ready") {
-      if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+      if (audioUrlsRef.current.second) {
+        URL.revokeObjectURL(audioUrlsRef.current.second);
+      }
+
+      audioUrlsRef.current.second = "";
+
       setSecondAudio(null);
       setSecondAudioUrl("");
       setStage("second");
@@ -196,7 +257,7 @@ function SpeakingStudio({
       const currentAudio = action === "analyze" ? firstAudio : secondAudio;
 
       const mimeType = (
-        firstAudio?.type || currentAudio?.type || "audio/webm"
+        currentAudio?.type || firstAudio?.type || "audio/webm"
       ).split(";")[0];
 
       const payload = {
@@ -211,7 +272,15 @@ function SpeakingStudio({
       if (action === "analyze") {
         payload.audio = await blobToBase64(firstAudio);
       } else {
-        payload.firstAudio = await blobToBase64(firstAudio);
+        if (!feedback?.transcription) {
+          throw new Error(
+            isSpanish
+              ? "No encontramos la transcripción del primer intento. Volvé a analizarlo antes de comparar."
+              : "The first attempt transcription is missing. Please analyse it again before comparing."
+          );
+        }
+
+        payload.firstTranscript = feedback.transcription;
         payload.secondAudio = await blobToBase64(secondAudio);
       }
 
@@ -226,7 +295,12 @@ function SpeakingStudio({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Gemini could not analyse the audio.");
+        throw new Error(
+          data.error ||
+            (isSpanish
+              ? "Gemini no pudo analizar el audio."
+              : "Gemini could not analyse the audio.")
+        );
       }
 
       if (action === "analyze") {
@@ -237,22 +311,45 @@ function SpeakingStudio({
         setStage("comparison");
       }
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(
+        err.message ||
+          (isSpanish
+            ? "Ocurrió un error. Intentá nuevamente."
+            : "Something went wrong. Please try again.")
+      );
     } finally {
       setLoading(false);
     }
   }
 
   function startSecondAttempt() {
+    if (audioUrlsRef.current.second) {
+      URL.revokeObjectURL(audioUrlsRef.current.second);
+    }
+
+    audioUrlsRef.current.second = "";
+
     setSecondAudio(null);
     setSecondAudioUrl("");
+    setComparison(null);
     setError("");
+    setSeconds(0);
     setStage("second");
   }
 
   function restartActivity() {
-    if (firstAudioUrl) URL.revokeObjectURL(firstAudioUrl);
-    if (secondAudioUrl) URL.revokeObjectURL(secondAudioUrl);
+    if (audioUrlsRef.current.first) {
+      URL.revokeObjectURL(audioUrlsRef.current.first);
+    }
+
+    if (audioUrlsRef.current.second) {
+      URL.revokeObjectURL(audioUrlsRef.current.second);
+    }
+
+    audioUrlsRef.current = {
+      first: "",
+      second: "",
+    };
 
     setFirstAudio(null);
     setFirstAudioUrl("");
@@ -262,6 +359,7 @@ function SpeakingStudio({
     setComparison(null);
     setError("");
     setSeconds(0);
+    setRecording(false);
     setStage("first");
   }
 
@@ -274,6 +372,7 @@ function SpeakingStudio({
           <Volume2 size={17} />
           <strong>{label}</strong>
         </div>
+
         <audio controls src={url} />
       </div>
     );
@@ -283,15 +382,50 @@ function SpeakingStudio({
     if (!data) return null;
 
     const fields = [
-      ["strengths", "What worked well"],
-      ["development", "What you could develop"],
-      ["oralCommunication", "Oral communication"],
-      ["nextQuestion", "A question to think further"],
-      ["nextStep", "Your next step"],
-      ["changes", "What changed"],
-      ["reasoning", "Development of your ideas"],
-      ["pending", "What still needs attention"],
-      ["evidence", "Evidence from the recordings"],
+      [
+        "strengths",
+        isSpanish ? "Lo que hiciste bien" : "What worked well",
+      ],
+      [
+        "development",
+        isSpanish ? "Qué podés desarrollar" : "What you could develop",
+      ],
+      [
+        "oralCommunication",
+        isSpanish ? "Comunicación oral" : "Oral communication",
+      ],
+      [
+        "nextQuestion",
+        isSpanish
+          ? "Una pregunta para seguir pensando"
+          : "A question to think further",
+      ],
+      [
+        "nextStep",
+        isSpanish ? "Tu próximo paso" : "Your next step",
+      ],
+      [
+        "changes",
+        isSpanish ? "Qué cambió" : "What changed",
+      ],
+      [
+        "reasoning",
+        isSpanish
+          ? "Desarrollo de tus ideas"
+          : "Development of your ideas",
+      ],
+      [
+        "pending",
+        isSpanish
+          ? "Qué queda por trabajar"
+          : "What still needs attention",
+      ],
+      [
+        "evidence",
+        isSpanish
+          ? "Evidencias de las grabaciones"
+          : "Evidence from the recordings",
+      ],
     ];
 
     return (
@@ -301,13 +435,53 @@ function SpeakingStudio({
           <h3>{title}</h3>
         </div>
 
-        {fields.map(([key, label]) =>
-          data[key] ? (
+        {fields.map(([key, label]) => {
+          const value = data[key];
+
+          const hasContent = Array.isArray(value)
+            ? value.length > 0
+            : typeof value === "string" && value.trim().length > 0;
+
+          if (!hasContent) {
+            return null;
+          }
+
+          return (
             <div className="vox-feedback-item" key={key}>
               <h4>{label}</h4>
-              <p>{data[key]}</p>
+
+              {Array.isArray(value) ? (
+                <ul>
+                  {value.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{value}</p>
+              )}
             </div>
-          ) : null
+          );
+        })}
+
+        {data.transcription && (
+          <div className="vox-feedback-item">
+            <h4>{isSpanish ? "Lo que VOX entendió" : "What VOX understood"}</h4>
+            <p>{data.transcription}</p>
+          </div>
+        )}
+
+        {data.transcriptions && (
+          <div className="vox-feedback-item">
+            <h4>{isSpanish ? "Transcripciones para comparar" : "Transcripts being compared"}</h4>
+            <p>
+              <strong>{isSpanish ? "Primer intento: " : "First attempt: "}</strong>
+              {data.transcriptions.first}
+            </p>
+            <p>
+              <strong>{isSpanish ? "Segundo intento: " : "Second attempt: "}</strong>
+              {data.transcriptions.second}
+            </p>
+          </div>
         )}
 
         {data.message && <p>{data.message}</p>}
@@ -315,12 +489,17 @@ function SpeakingStudio({
     );
   }
 
+  const showFirstFeedback =
+    feedback &&
+    ["second", "second-ready", "comparison"].includes(stage);
+
   return (
     <section className="speaking-studio">
       <div className="speaking-heading">
         <div className="speaking-icon">
           <Mic size={21} />
         </div>
+
         <div>
           <span className="speaking-kicker">SPEAKING STUDIO</span>
           <h2>Give your ideas a voice.</h2>
@@ -329,9 +508,25 @@ function SpeakingStudio({
       </div>
 
       <div className="speaking-prompt">
-        <span>YOUR CHALLENGE</span>
+        <span>{isSpanish ? "TU DESAFÍO" : "YOUR CHALLENGE"}</span>
         <p>{question}</p>
       </div>
+
+      {showFirstFeedback && (
+        <div className="vox-previous-feedback">
+          {renderAudioPlayer(
+            isSpanish ? "Tu primera intervención" : "Your first attempt",
+            firstAudioUrl
+          )}
+
+          {renderFeedbackSection(
+            isSpanish
+              ? "Devolución del primer intento"
+              : "Feedback on your first attempt",
+            feedback
+          )}
+        </div>
+      )}
 
       {(stage === "first" || stage === "second") && (
         <div className="recording-panel">
@@ -341,7 +536,14 @@ function SpeakingStudio({
                 recording ? "is-recording" : ""
               }`}
             />
-            {recording ? "Recording in progress" : "Ready when you are"}
+
+            {recording
+              ? isSpanish
+                ? "Grabando..."
+                : "Recording in progress"
+              : isSpanish
+                ? "Cuando quieras, empezá"
+                : "Ready when you are"}
           </div>
 
           <div className="recording-timer">
@@ -352,7 +554,13 @@ function SpeakingStudio({
           {!recording ? (
             <button className="record-button" onClick={startRecording}>
               <Mic size={19} />
-              {stage === "first" ? "Start recording" : "Record second attempt"}
+              {stage === "first"
+                ? isSpanish
+                  ? "Empezar a grabar"
+                  : "Start recording"
+                : isSpanish
+                  ? "Grabar segundo intento"
+                  : "Record second attempt"}
             </button>
           ) : (
             <button
@@ -360,12 +568,13 @@ function SpeakingStudio({
               onClick={stopRecording}
             >
               <Square size={17} />
-              Stop recording
+              {isSpanish ? "Detener grabación" : "Stop recording"}
             </button>
           )}
 
           <p className="time-limit-notice">
-            Maximum duration: {formatTime(TIME_LIMIT)}.
+            {isSpanish ? "Duración máxima: " : "Maximum duration: "}
+            {formatTime(TIME_LIMIT)}.
           </p>
         </div>
       )}
@@ -374,15 +583,20 @@ function SpeakingStudio({
         <div className="recording-panel">
           <div className="audio-result-heading">
             <CheckCircle2 size={18} />
-            Your first contribution is ready.
+            {isSpanish
+              ? "Tu primera intervención está lista."
+              : "Your first contribution is ready."}
           </div>
 
-          {renderAudioPlayer("First attempt", firstAudioUrl)}
+          {renderAudioPlayer(
+            isSpanish ? "Primer intento" : "First attempt",
+            firstAudioUrl
+          )}
 
           <div className="vox-action-row">
             <button className="retry-button" onClick={discardCurrentAudio}>
               <RotateCcw size={16} />
-              Record again
+              {isSpanish ? "Grabar nuevamente" : "Record again"}
             </button>
 
             <button
@@ -391,7 +605,13 @@ function SpeakingStudio({
               disabled={loading}
             >
               <Sparkles size={16} />
-              {loading ? "Gemini is analysing..." : "Send to Gemini"}
+              {loading
+                ? isSpanish
+                  ? "Analizando..."
+                  : "Gemini is analysing..."
+                : isSpanish
+                  ? "Analizar mi intervención"
+                  : "Send to Gemini"}
             </button>
           </div>
         </div>
@@ -399,12 +619,24 @@ function SpeakingStudio({
 
       {stage === "first-feedback" && (
         <>
-          {renderAudioPlayer("Listen to your first attempt", firstAudioUrl)}
-          {renderFeedbackSection("Feedback on your first attempt", feedback)}
+          {renderAudioPlayer(
+            isSpanish ? "Escuchá tu primer intento" : "Listen to your first attempt",
+            firstAudioUrl
+          )}
 
-          <button className="ai-reflection-button" onClick={startSecondAttempt}>
+          {renderFeedbackSection(
+            isSpanish
+              ? "Devolución del primer intento"
+              : "Feedback on your first attempt",
+            feedback
+          )}
+
+          <button
+            className="ai-reflection-button"
+            onClick={startSecondAttempt}
+          >
             <RotateCcw size={16} />
-            Try again
+            {isSpanish ? "Intentar nuevamente" : "Try again"}
             <ArrowRight size={16} />
           </button>
         </>
@@ -414,16 +646,27 @@ function SpeakingStudio({
         <div className="recording-panel">
           <div className="audio-result-heading">
             <CheckCircle2 size={18} />
-            Your second contribution is ready.
+            {isSpanish
+              ? "Tu segundo intento está listo."
+              : "Your second contribution is ready."}
           </div>
 
-          {renderAudioPlayer("First attempt", firstAudioUrl)}
-          {renderAudioPlayer("Second attempt", secondAudioUrl)}
+          {renderAudioPlayer(
+            isSpanish ? "Primer intento" : "First attempt",
+            firstAudioUrl
+          )}
+
+          {renderAudioPlayer(
+            isSpanish ? "Segundo intento" : "Second attempt",
+            secondAudioUrl
+          )}
 
           <div className="vox-action-row">
             <button className="retry-button" onClick={discardCurrentAudio}>
               <RotateCcw size={16} />
-              Record second attempt again
+              {isSpanish
+                ? "Grabar el segundo intento nuevamente"
+                : "Record second attempt again"}
             </button>
 
             <button
@@ -432,7 +675,13 @@ function SpeakingStudio({
               disabled={loading}
             >
               <Sparkles size={16} />
-              {loading ? "Comparing recordings..." : "Compare both attempts"}
+              {loading
+                ? isSpanish
+                  ? "Comparando..."
+                  : "Comparing recordings..."
+                : isSpanish
+                  ? "Comparar ambos intentos"
+                  : "Compare both attempts"}
             </button>
           </div>
         </div>
@@ -441,22 +690,35 @@ function SpeakingStudio({
       {stage === "comparison" && (
         <>
           <section className="vox-recordings">
-            <h3>Your recordings</h3>
-            {renderAudioPlayer("First attempt", firstAudioUrl)}
-            {renderAudioPlayer("Second attempt", secondAudioUrl)}
+            <h3>{isSpanish ? "Tus grabaciones" : "Your recordings"}</h3>
+
+            {renderAudioPlayer(
+              isSpanish ? "Primer intento" : "First attempt",
+              firstAudioUrl
+            )}
+
+            {renderAudioPlayer(
+              isSpanish ? "Segundo intento" : "Second attempt",
+              secondAudioUrl
+            )}
           </section>
 
-          {renderFeedbackSection("Your progress: a comparison", comparison)}
+          {renderFeedbackSection(
+            isSpanish
+              ? "Comparación de tus intervenciones"
+              : "Your progress: a comparison",
+            comparison
+          )}
 
           <div className="vox-action-row">
             <button className="retry-button" onClick={restartActivity}>
               <RotateCcw size={16} />
-              New attempt
+              {isSpanish ? "Nuevo intento" : "New attempt"}
             </button>
 
             {onBack && (
               <button className="ai-reflection-button" onClick={onBack}>
-                Back to Challenges
+                {isSpanish ? "Volver a los desafíos" : "Back to Challenges"}
                 <ArrowRight size={16} />
               </button>
             )}
@@ -468,8 +730,12 @@ function SpeakingStudio({
         <div className="ai-loading">
           <Sparkles size={17} />
           {stage === "first-ready"
-            ? "VOX is listening to your contribution..."
-            : "VOX is comparing both recordings..."}
+            ? isSpanish
+              ? "VOX está escuchando tu intervención..."
+              : "VOX is listening to your contribution..."
+            : isSpanish
+              ? "VOX está comparando ambas grabaciones..."
+              : "VOX is comparing both recordings..."}
         </div>
       )}
 
@@ -483,7 +749,9 @@ function SpeakingStudio({
       <div className="speaking-privacy">
         <Headphones size={17} />
         <span>
-          Your recordings are used to generate feedback for this activity.
+          {isSpanish
+            ? "Tus grabaciones se utilizan para generar la devolución de esta actividad."
+            : "Your recordings are used to generate feedback for this activity."}
         </span>
       </div>
     </section>
