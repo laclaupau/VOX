@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import "./App.css";
 import Workspace from "./Workspace";
+import TeacherDashboard from "./TeacherDashboard";
 
 const challenges = [
   {
@@ -73,6 +74,9 @@ function App() {
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeWorkspace, setActiveWorkspace] = useState(null);
+  const [showTeacher, setShowTeacher] = useState(false);
+
+  if (showTeacher) return <TeacherDashboard onBack={() => setShowTeacher(false)} />;
 
   const visibleChallenges = challenges.filter((challenge) => {
     const matchesFilter =
@@ -112,9 +116,9 @@ function App() {
           </a>
         </nav>
 
-        <button className="profile-button" aria-label="Student profile">
-          <span className="profile-avatar">S</span>
-          <span>Student space</span>
+        <button className="profile-button" aria-label="Open teacher space" onClick={() => setShowTeacher(true)}>
+          <span className="profile-avatar">T</span>
+          <span>Teacher space</span>
         </button>
       </header>
 
