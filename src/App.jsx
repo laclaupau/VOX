@@ -18,6 +18,7 @@ import {
 import "./App.css";
 import Workspace from "./Workspace";
 import TeacherDashboard from "./TeacherDashboard";
+import StudentDashboard from "./StudentDashboard";
 
 const challenges = [
   {
@@ -75,8 +76,29 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [showTeacher, setShowTeacher] = useState(false);
+  const [showStudent, setShowStudent] = useState(false);
 
-  if (showTeacher) return <TeacherDashboard onBack={() => setShowTeacher(false)} />;
+  if (showStudent) return (
+    <StudentDashboard
+      onBack={() => setShowStudent(false)}
+      availableChallenges={challenges.map((challenge) => ({
+        ...challenge,
+        id: `library-${challenge.id}`,
+        source: "VOX library",
+      }))}
+    />
+  );
+
+  if (showTeacher) return (
+    <TeacherDashboard
+      onBack={() => setShowTeacher(false)}
+      availableChallenges={challenges.map((challenge) => ({
+        ...challenge,
+        id: `library-${challenge.id}`,
+        source: "VOX library",
+      }))}
+    />
+  );
 
   const visibleChallenges = challenges.filter((challenge) => {
     const matchesFilter =
@@ -116,10 +138,16 @@ function App() {
           </a>
         </nav>
 
-        <button className="profile-button" aria-label="Open teacher space" onClick={() => setShowTeacher(true)}>
-          <span className="profile-avatar">T</span>
-          <span>Teacher space</span>
-        </button>
+        <div className="profile-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button className="profile-button student-profile-button" aria-label="Open student space" onClick={() => setShowStudent(true)}>
+            <span className="profile-avatar">S</span>
+            <span>Student space</span>
+          </button>
+          <button className="profile-button" aria-label="Open teacher space" onClick={() => setShowTeacher(true)}>
+            <span className="profile-avatar">T</span>
+            <span>Teacher space</span>
+          </button>
+        </div>
       </header>
 
       <main id="home">

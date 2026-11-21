@@ -538,3 +538,161 @@
         flex-direction: column
     }
 }
+
+/* Teacher workspace navigation, courses and assignments */
+.teacher-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 28px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e8e5df
+}
+
+.teacher-tabs button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 15px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: #777c86;
+    font: 700 12px "DM Sans", sans-serif
+}
+
+.teacher-tabs button.active {
+    background: #fffefa;
+    border-color: #e8e5df;
+    color: #202533
+}
+
+.teacher-tabs button span {
+    display: grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 12px;
+    background: #eee9df;
+    color: #696b74;
+    font-size: 10px
+}
+
+.teacher-panel-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, .85fr) minmax(0, 1.35fr);
+    gap: 22px;
+    align-items: start
+}
+
+.compact-form {
+    padding: 26px
+}
+
+.teacher-list-panel {
+    min-width: 0
+}
+
+.teacher-list-panel .library-heading {
+    margin-bottom: 15px
+}
+
+.form-actions,
+.item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+.teacher-cancel {
+    padding: 12px 15px;
+    border: 1px solid #e8e5df;
+    border-radius: 5px;
+    background: transparent;
+    color: #777c86;
+    font-size: 11px;
+    font-weight: 700
+}
+
+.item-actions>button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid #e8e5df;
+    border-radius: 50%;
+    background: transparent;
+    color: #777c86
+}
+
+.item-actions>button:hover {
+    color: #bd5948;
+    border-color: #bd5948
+}
+
+.assignment-item {
+    align-items: flex-start
+}
+
+.teacher-storage-note {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 38px;
+    padding: 15px 17px;
+    border: 1px solid #e8e5df;
+    border-radius: 6px;
+    color: #777c86;
+    font-size: 11px;
+    line-height: 1.5
+}
+
+.teacher-storage-note svg {
+    flex: 0 0 auto;
+    color: #a36d59
+}
+
+@media(max-width:800px) {
+    .teacher-panel-grid {
+        grid-template-columns: 1fr
+    }
+
+    .teacher-tabs {
+        gap: 4px
+    }
+
+    .teacher-tabs button {
+        padding: 10px 11px
+    }
+}
+
+@media(max-width:560px) {
+    .teacher-tabs button {
+        flex: 1;
+        justify-content: center;
+        font-size: 10px;
+        padding: 10px 7px
+    }
+
+    .teacher-tabs button svg {
+        width: 14px
+    }
+
+    .compact-form {
+        padding: 21px
+    }
+
+    .teacher-form-footer {
+        gap: 12px
+    }
+
+    .form-actions {
+        width: 100%;
+        justify-content: flex-end
+    }
+
+    .teacher-storage-note {
+        align-items: flex-start
+    }
+}

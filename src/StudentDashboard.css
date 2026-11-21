@@ -1,0 +1,388 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+.student-shell {
+    min-height: 100vh;
+    background: #f8f7f3;
+    color: #202533;
+    font-family: 'DM Sans', sans-serif
+}
+
+.student-topbar {
+    height: 76px;
+    padding: 0 clamp(22px, 6vw, 88px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e8e5df;
+    background: rgba(248, 247, 243, .94)
+}
+
+.student-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #17243a;
+    text-decoration: none;
+    font: 700 20px 'Space Grotesk', sans-serif;
+    letter-spacing: -.06em
+}
+
+.student-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 31px;
+    height: 31px;
+    border-radius: 10px;
+    background: #f17e61;
+    color: white;
+    font-size: 18px
+}
+
+.student-space-label {
+    margin-left: 8px;
+    padding-left: 15px;
+    border-left: 1px solid #d9d5ce;
+    color: #777c86;
+    font: 700 10px 'DM Sans', sans-serif;
+    letter-spacing: .12em
+}
+
+.student-back {
+    border: 1px solid #e1ddd6;
+    background: transparent;
+    border-radius: 999px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #17243a;
+    font: 600 13px 'DM Sans', sans-serif;
+    cursor: pointer
+}
+
+.student-main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 54px 28px 36px
+}
+
+.student-welcome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 30px;
+    padding: 40px 44px;
+    border-radius: 24px;
+    background: #17243a;
+    color: white;
+    overflow: hidden;
+    position: relative
+}
+
+.student-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #f17e61;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .14em
+}
+
+.student-welcome h1 {
+    font: 600 clamp(38px, 6vw, 62px)/1.02 'Space Grotesk', sans-serif;
+    letter-spacing: -.055em;
+    margin: 17px 0
+}
+
+.student-welcome h1 span,
+.student-section-heading h2 span {
+    color: #f17e61
+}
+
+.student-welcome p {
+    max-width: 520px;
+    color: #d1d7e0;
+    font-size: 15px;
+    line-height: 1.7;
+    margin: 0
+}
+
+.student-welcome-mark {
+    width: 145px;
+    height: 145px;
+    flex: none;
+    border: 1px solid #526078;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #f4a18d;
+    transform: rotate(8deg)
+}
+
+.student-welcome-mark span {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    line-height: 1.55
+}
+
+.student-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 20px 0 54px
+}
+
+.student-summary>div {
+    padding: 20px 24px;
+    border: 1px solid #e8e5df;
+    border-radius: 16px;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 16px
+}
+
+.student-summary strong {
+    font: 600 30px 'Space Grotesk', sans-serif;
+    color: #17243a
+}
+
+.student-summary span {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    color: #777c86
+}
+
+.student-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    color: #17243a
+}
+
+.student-section-heading h2 {
+    font: 600 32px 'Space Grotesk', sans-serif;
+    letter-spacing: -.04em;
+    margin: 8px 0
+}
+
+.student-section-heading p {
+    color: #777c86;
+    margin: 0;
+    font-size: 14px
+}
+
+.student-assignment-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px
+}
+
+.student-assignment-card {
+    background: white;
+    border: 1px solid #e8e5df;
+    border-radius: 18px;
+    padding: 23px;
+    display: flex;
+    flex-direction: column;
+    min-height: 270px
+}
+
+.student-card-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: #777c86;
+    font-size: 11px;
+    margin-bottom: 24px
+}
+
+.student-card-meta span,
+.student-card-footer span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px
+}
+
+.student-card-kicker {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    color: #f17e61
+}
+
+.student-assignment-card h3 {
+    font: 600 22px/1.2 'Space Grotesk', sans-serif;
+    color: #17243a;
+    margin: 9px 0
+}
+
+.student-card-question {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555e6d;
+    margin: 0 0 10px
+}
+
+.student-card-instructions {
+    font-size: 12px;
+    line-height: 1.55;
+    background: #f8f7f3;
+    padding: 10px 12px;
+    border-radius: 9px;
+    color: #555e6d
+}
+
+.student-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 20px;
+    color: #777c86;
+    font-size: 11px
+}
+
+.student-card-footer button,
+.student-empty button {
+    border: 0;
+    border-radius: 999px;
+    background: #f17e61;
+    color: white;
+    padding: 11px 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12px 'DM Sans', sans-serif;
+    cursor: pointer
+}
+
+.student-empty {
+    border: 1px dashed #d8d3ca;
+    border-radius: 18px;
+    padding: 46px 24px;
+    text-align: center;
+    background: rgba(255, 255, 255, .55)
+}
+
+.student-empty-icon {
+    margin: 0 auto 14px;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    background: #fce9e3;
+    color: #e7775b;
+    border-radius: 16px
+}
+
+.student-empty h3 {
+    font: 600 21px 'Space Grotesk', sans-serif;
+    color: #17243a;
+    margin: 0 0 8px
+}
+
+.student-empty p {
+    max-width: 410px;
+    margin: 0 auto 18px;
+    color: #777c86;
+    font-size: 13px;
+    line-height: 1.6
+}
+
+.student-storage-note {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 34px;
+    color: #777c86;
+    font-size: 11px
+}
+
+@media(max-width:700px) {
+    .student-topbar {
+        height: 66px;
+        padding: 0 17px
+    }
+
+    .student-main {
+        padding: 28px 16px
+    }
+
+    .student-welcome {
+        padding: 30px 24px
+    }
+
+    .student-welcome-mark {
+        width: 94px;
+        height: 94px
+    }
+
+    .student-welcome-mark svg {
+        width: 25px
+    }
+
+    .student-summary {
+        margin-bottom: 38px
+    }
+
+    .student-summary>div {
+        padding: 16px;
+        gap: 10px
+    }
+
+    .student-summary span {
+        font-size: 9px
+    }
+
+    .student-assignment-grid {
+        grid-template-columns: 1fr
+    }
+
+    .student-section-heading h2 {
+        font-size: 27px
+    }
+
+    .student-card-meta {
+        margin-bottom: 18px
+    }
+}
+
+@media(max-width:430px) {
+    .student-space-label {
+        font-size: 8px;
+        margin-left: 2px;
+        padding-left: 9px
+    }
+
+    .student-welcome-mark {
+        display: none
+    }
+
+    .student-welcome {
+        padding: 28px 22px
+    }
+
+    .student-summary {
+        grid-template-columns: 1fr
+    }
+
+    .student-card-footer {
+        align-items: flex-start;
+        flex-direction: column
+    }
+
+    .student-card-footer button {
+        width: 100%;
+        justify-content: center
+    }
+}
