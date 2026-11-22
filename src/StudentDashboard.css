@@ -386,3 +386,38 @@
         justify-content: center
     }
 }
+
+.student-progress-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0 0;
+    margin-top: 10px;
+    border-top: 1px solid #eeeae3;
+    color: #777c86;
+    font-size: 10px
+}
+
+.student-progress-line>span:first-child {
+    display: flex;
+    align-items: center;
+    gap: 6px
+}
+
+.student-status {
+    font-size: 10px;
+    font-weight: 700
+}
+
+.student-status.completed {
+    color: #397553
+}
+
+.student-status.started {
+    color: #a36d59
+}
+
+.student-status.not-started {
+    color: #777c86
+}

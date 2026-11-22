@@ -696,3 +696,143 @@
         align-items: flex-start
     }
 }
+
+/* Student progress prototype */
+.teacher-progress-panel {
+    display: block
+}
+
+.progress-overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 22px 0
+}
+
+.progress-overview>div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 18px 20px;
+    background: #fffefa;
+    border: 1px solid #e8e5df;
+    border-radius: 7px
+}
+
+.progress-overview strong {
+    font: 600 28px "Space Grotesk", sans-serif;
+    color: #17243a
+}
+
+.progress-overview span {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #777c86
+}
+
+.teacher-progress-list {
+    display: grid;
+    gap: 13px;
+    margin-top: 18px
+}
+
+.teacher-progress-item {
+    padding: 20px;
+    background: #fffefa;
+    border: 1px solid #e8e5df;
+    border-radius: 8px
+}
+
+.teacher-progress-item-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px
+}
+
+.teacher-progress-item-head>div>span {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .8px;
+    color: #9b705f
+}
+
+.teacher-progress-item h3 {
+    margin: 6px 0;
+    font: 600 18px "Space Grotesk", sans-serif;
+    color: #202533
+}
+
+.teacher-progress-status {
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 800;
+    color: #a36d59
+}
+
+.teacher-progress-status.completed {
+    color: #397553
+}
+
+.teacher-progress-date {
+    font-size: 10px;
+    color: #85838a;
+    margin: 5px 0 0
+}
+
+.teacher-thinking-evidence {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 17px
+}
+
+.teacher-thinking-evidence>div {
+    padding: 12px;
+    background: #f8f7f3;
+    border-radius: 5px;
+    min-width: 0
+}
+
+.teacher-thinking-evidence span {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .8px;
+    color: #9b705f
+}
+
+.teacher-thinking-evidence p {
+    font-size: 11px;
+    line-height: 1.55;
+    color: #555e6d;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 6px 0 0
+}
+
+.teacher-progress-disclaimer {
+    margin-top: 18px;
+    color: #85838a;
+    font-size: 10px;
+    line-height: 1.6
+}
+
+@media(max-width:560px) {
+    .progress-overview {
+        grid-template-columns: 1fr 1fr
+    }
+
+    .progress-overview>div:last-child {
+        grid-column: 1/-1
+    }
+
+    .teacher-thinking-evidence {
+        grid-template-columns: 1fr
+    }
+
+    .teacher-progress-item-head {
+        flex-direction: column;
+        gap: 5px
+    }
+}

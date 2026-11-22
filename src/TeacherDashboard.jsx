@@ -11,6 +11,7 @@ const ACTIVATORS = ["Clarify", "Develop", "Connect", "Challenge"];
 const CHALLENGES_KEY = "vox.teacher.challenges.v1";
 const COURSES_KEY = "vox.teacher.courses.v1";
 const ASSIGNMENTS_KEY = "vox.teacher.assignments.v1";
+const PROGRESS_KEY = "vox.student.progress.v1";
 const emptyForm = { title: "", area: "History", language: "English", cefrLevel: "B1", contentType: "Article", topic: "", objective: "Interpret", route: "Investigate", activators: ["Connect"], prompt: "", description: "" };
 const readStore = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
 const makeId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -19,6 +20,7 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
   const [challenges, setChallenges] = useState(() => readStore(CHALLENGES_KEY));
   const [courses, setCourses] = useState(() => readStore(COURSES_KEY));
   const [assignments, setAssignments] = useState(() => readStore(ASSIGNMENTS_KEY));
+  const [progress] = useState(() => readStore(PROGRESS_KEY));
   const assignmentChallenges = [...availableChallenges, ...challenges];
   const [form, setForm] = useState(emptyForm);
   const [courseForm, setCourseForm] = useState({ name: "", level: "", description: "" });
@@ -79,6 +81,7 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
         <button className={activeTab === "challenges" ? "active" : ""} onClick={() => setActiveTab("challenges")}><BookOpen size={16}/> Challenges</button>
         <button className={activeTab === "courses" ? "active" : ""} onClick={() => setActiveTab("courses")}><Users size={16}/> My courses <span>{courses.length}</span></button>
         <button className={activeTab === "assignments" ? "active" : ""} onClick={() => setActiveTab("assignments")}><CalendarDays size={16}/> Assignments <span>{assignments.length}</span></button>
+        <button className={activeTab === "progress" ? "active" : ""} onClick={() => setActiveTab("progress")}><Sparkles size={16}/> Student progress <span>{progress.filter(item => item.status === "completed").length}</span></button>
       </nav>
 
       {activeTab === "challenges" && <>
@@ -134,6 +137,27 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
         <div className="teacher-list-panel"><div className="library-heading"><div><span className="teacher-kicker">PLANNING</span><h2>Assigned challenges</h2><p>{assignments.length} {assignments.length===1?"assignment":"assignments"}</p></div></div>
           {assignments.length===0 ? <div className="teacher-empty">Your assignments will appear here once you assign a challenge to a course.</div> : <div className="teacher-challenge-list">{assignments.map(item=><article className="teacher-challenge-item assignment-item" key={item.id}><div><span>{item.courseName}</span><h3>{item.challengeTitle}</h3><p>{item.dueDate ? `Due ${new Date(`${item.dueDate}T12:00:00`).toLocaleDateString()}` : "No due date"}{item.instructions ? ` · ${item.instructions}` : ""}</p></div><button onClick={()=>removeAssignment(item.id)} aria-label={`Remove assignment ${item.challengeTitle}`}><Trash2 size={17}/></button></article>)}</div>}
         </div>
+      </section>}
+
+      {activeTab === "progress" && <section className="teacher-progress-panel">
+        <div className="library-heading"><div><span className="teacher-kicker">LEARNING EVIDENCE</span><h2>Student progress</h2><p>Review starts, completed thinking activities and written contributions recorded on this device.</p></div></div>
+        <div className="progress-overview">
+          <div><strong>{progress.length}</strong><span>ATTEMPTS STARTED</span></div>
+          <div><strong>{progress.filter(item => item.status === "completed").length}</strong><span>ACTIVITIES COMPLETED</span></div>
+          <div><strong>{assignments.length}</strong><span>ASSIGNMENTS</span></div>
+        </div>
+        {progress.length === 0 ? <div className="teacher-empty">No student activity recorded yet. Open Student Space, start an assigned challenge and finish the thinking activity. The results will appear here.</div> :
+          <div className="teacher-progress-list">{[...progress].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt)).map(item => <article className="teacher-progress-item" key={item.id}>
+            <div className="teacher-progress-item-head"><div><span>{item.courseName || "Course"} · Attempt {item.attemptNumber || 1}</span><h3>{item.challengeTitle || "VOX challenge"}</h3></div><span className={`teacher-progress-status ${item.status}`}>{item.status === "completed" ? "Completed" : "In progress"}</span></div>
+            <p className="teacher-progress-date">Started {new Date(item.startedAt).toLocaleString()}{item.completedAt ? ` · Completed ${new Date(item.completedAt).toLocaleString()}` : ""}</p>
+            {item.thinking && <div className="teacher-thinking-evidence">
+              <div><span>INITIAL IDEA</span><p>{item.thinking.initialIdea || "Not provided"}</p></div>
+              <div><span>REASONING</span><p>{item.thinking.reason || "Not provided"}</p></div>
+              <div><span>EXAMPLE / EVIDENCE</span><p>{item.thinking.example || "Not provided"}</p></div>
+              <div><span>ANOTHER PERSPECTIVE</span><p>{item.thinking.otherPerspective || "Not provided"}</p></div>
+            </div>}
+          </article>)}</div>}
+        <p className="teacher-progress-disclaimer">This is a local prototype: activity is not linked to an individual student account and is visible only in this browser. Audio recordings and AI feedback are not included in this progress report yet.</p>
       </section>}
       <footer className="teacher-storage-note"><GraduationCap size={16}/> Teacher data is currently stored in this browser only. Shared accounts and cloud synchronisation will be added in a later stage.</footer>
     </main>
