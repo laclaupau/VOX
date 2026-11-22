@@ -150,6 +150,16 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
           <div className="teacher-progress-list">{[...progress].sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt)).map(item => <article className="teacher-progress-item" key={item.id}>
             <div className="teacher-progress-item-head"><div><span>{item.courseName || "Course"} · Attempt {item.attemptNumber || 1}</span><h3>{item.challengeTitle || "VOX challenge"}</h3></div><span className={`teacher-progress-status ${item.status}`}>{item.status === "completed" ? "Completed" : "In progress"}</span></div>
             <p className="teacher-progress-date">Started {new Date(item.startedAt).toLocaleString()}{item.completedAt ? ` · Completed ${new Date(item.completedAt).toLocaleString()}` : ""}</p>
+            {item.speaking?.comparison && <div className="teacher-speaking-evidence">
+              <strong>ORAL PROGRESS · AI COMPARISON</strong>
+              {["strengths", "development", "oralCommunication", "changes", "reasoning", "nextStep"].map(key => {
+                const value = item.speaking.comparison[key];
+                if (!value || (Array.isArray(value) && value.length === 0)) return null;
+                return <div key={key}><span>{key.replace(/([A-Z])/g, " $1").toUpperCase()}</span><p>{Array.isArray(value) ? value.join(" · ") : value}</p></div>;
+              })}
+              {item.speaking.firstTranscription && <div><span>FIRST ATTEMPT TRANSCRIPT</span><p>{item.speaking.firstTranscription}</p></div>}
+              {item.speaking.secondTranscription && <div><span>SECOND ATTEMPT TRANSCRIPT</span><p>{item.speaking.secondTranscription}</p></div>}
+            </div>}
             {item.thinking && <div className="teacher-thinking-evidence">
               <div><span>INITIAL IDEA</span><p>{item.thinking.initialIdea || "Not provided"}</p></div>
               <div><span>REASONING</span><p>{item.thinking.reason || "Not provided"}</p></div>
@@ -157,7 +167,7 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
               <div><span>ANOTHER PERSPECTIVE</span><p>{item.thinking.otherPerspective || "Not provided"}</p></div>
             </div>}
           </article>)}</div>}
-        <p className="teacher-progress-disclaimer">This is a local prototype: activity is not linked to an individual student account and is visible only in this browser. Audio recordings and AI feedback are not included in this progress report yet.</p>
+        <p className="teacher-progress-disclaimer">This is a local prototype: activity is not linked to an individual student account and is visible only in this browser. Audio files remain in the student session; this report stores the AI comparison and transcript evidence.</p>
       </section>}
       <footer className="teacher-storage-note"><GraduationCap size={16}/> Teacher data is currently stored in this browser only. Shared accounts and cloud synchronisation will be added in a later stage.</footer>
     </main>

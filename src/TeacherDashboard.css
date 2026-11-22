@@ -836,3 +836,36 @@
         gap: 5px
     }
 }
+
+.teacher-speaking-evidence {
+    margin-top: 16px;
+    padding: 16px 18px;
+    border: 1px solid #dcd9ee;
+    border-radius: 14px;
+    background: #f8f7ff
+}
+
+.teacher-speaking-evidence>strong {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 11px;
+    letter-spacing: .09em;
+    color: #6557a8
+}
+
+.teacher-speaking-evidence>div {
+    margin-top: 10px
+}
+
+.teacher-speaking-evidence span {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #6f7180
+}
+
+.teacher-speaking-evidence p {
+    margin: 4px 0 0;
+    line-height: 1.55;
+    white-space: pre-wrap
+}

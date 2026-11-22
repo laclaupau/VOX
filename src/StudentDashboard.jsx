@@ -64,15 +64,14 @@ export default function StudentDashboard({ onBack, availableChallenges = [] }) {
     setActiveSession({ ...session, challenge: item.challenge });
   }
 
-  function completeSession(thinking) {
+  function completeSession(result) {
     if (!activeSession) return;
     const next = progress.map(item => item.id === activeSession.id
-      ? { ...item, status: "completed", completedAt: new Date().toISOString(), thinking }
+      ? { ...item, status: "completed", completedAt: new Date().toISOString(), thinking: result?.thinking || null, speaking: result?.speaking || null }
       : item
     );
     saveProgress(next);
     setProgress(next);
-    setActiveSession(null);
   }
 
   if (activeSession) {

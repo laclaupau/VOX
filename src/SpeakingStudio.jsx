@@ -21,6 +21,7 @@ function SpeakingStudio({
   language = "English",
   subject = "General",
   onBack,
+  onComplete,
 }) {
   const [stage, setStage] = useState("first");
   const [recording, setRecording] = useState(false);
@@ -309,6 +310,13 @@ function SpeakingStudio({
       } else {
         setComparison(data.result);
         setStage("comparison");
+        onComplete?.({
+          firstTranscription: feedback?.transcription || "",
+          secondTranscription: data.result?.transcriptions?.second || "",
+          comparison: data.result,
+          firstAttemptFeedback: feedback,
+          completedAt: new Date().toISOString(),
+        });
       }
     } catch (err) {
       setError(
