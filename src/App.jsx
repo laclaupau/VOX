@@ -24,7 +24,7 @@ const challenges = [
   {
     id: 1,
     area: "Literature",
-    category: "Lengua y Literatura",
+    category: "Literature",
     title: "Can one story have many truths?",
     question:
       "¿Podemos interpretar las acciones de un personaje de maneras completamente diferentes?",
@@ -66,6 +66,86 @@ const challenges = [
     icon: Globe2,
     prompt: "Whose perspective might be missing?",
   },
+
+  {
+    id: 4, area: "Literature", category: "Literature", title: "What is left unsaid?",
+    question: "Choose a moment in a story when a character does not say what they really think or feel. What might the silence reveal?",
+    description: "Interpret a silence, gesture or omission and support your reading with details from the story.", level: "Interpretation", time: "5–8 min", color: "peach", icon: BookOpen,
+    prompt: "What detail in the story supports your interpretation?", thinkingActivators: ["Clarify", "Develop"]
+  },
+  {
+    id: 5, area: "Literature", category: "Literature", title: "A character's turning point",
+    question: "Identify a decision that changes a character's path. Was it inevitable, or could the character have chosen differently? Explain your interpretation.",
+    description: "Explore a character's decision, alternatives and consequences, using specific moments from the text.", level: "Interpretation and reasoning", time: "5–8 min", color: "peach", icon: BookOpen,
+    prompt: "What in the text makes you think another choice was possible?", thinkingActivators: ["Develop", "Challenge"]
+  },
+  {
+    id: 6, area: "Literature", category: "Literature", title: "Who tells the story—and who doesn't?",
+    question: "How would the meaning of a story change if it were told by another character, or by someone who is absent from the story?",
+    description: "Explore how perspective shapes what readers know, notice and interpret.", level: "Perspective", time: "5–8 min", color: "peach", icon: BookOpen,
+    prompt: "What might the alternative narrator notice or interpret differently?", thinkingActivators: ["Connect", "Challenge"]
+  },
+  {
+    id: 7, area: "Literature", category: "Literature", title: "The object that means more",
+    question: "Choose an object, image or repeated detail in a literary text. What meaning might it acquire beyond its literal role?",
+    description: "Develop a symbolic interpretation and connect it to events, characters or themes in the text.", level: "Inference", time: "5–8 min", color: "peach", icon: BookOpen,
+    prompt: "Which moments in the text help the object acquire this meaning?", thinkingActivators: ["Clarify", "Connect"]
+  },
+  {
+    id: 8, area: "English", category: "English", title: "Is convenience always worth it?",
+    question: "Think of a technology or service that makes everyday life easier. What might we lose when we rely on it too much?",
+    description: "Weigh benefits and drawbacks and develop a position with examples.", level: "Argumentation", time: "5–8 min", color: "lavender", icon: Lightbulb,
+    prompt: "Can you identify a situation in which the opposite could be true?", thinkingActivators: ["Develop", "Challenge"]
+  },
+  {
+    id: 9, area: "English", category: "English", title: "Should mistakes be public?",
+    question: "When people learn something new, should they be encouraged to make mistakes publicly or practise privately first? Why?",
+    description: "Consider different learning contexts and support your position with examples or reasoning.", level: "Argumentation", time: "5–8 min", color: "lavender", icon: Lightbulb,
+    prompt: "Whose experience might lead to a different answer?", thinkingActivators: ["Connect", "Challenge"]
+  },
+  {
+    id: 10, area: "English", category: "English", title: "What makes an apology meaningful?",
+    question: "Is saying 'I'm sorry' enough to repair harm? What else might be necessary, and does it depend on the situation?",
+    description: "Explore responsibility, intentions, actions and consequences through a reasoned response.", level: "Explanation and argumentation", time: "5–8 min", color: "lavender", icon: Lightbulb,
+    prompt: "What would count as evidence that the apology has led to change?", thinkingActivators: ["Clarify", "Develop"]
+  },
+  {
+    id: 11, area: "English", category: "English", title: "One rule, different realities",
+    question: "Imagine a rule applied equally to everyone. Could it still be unfair to some people? Explain using a concrete example.",
+    description: "Distinguish equality from fairness and explore how context can change the impact of a rule.", level: "Multiple perspectives", time: "5–8 min", color: "lavender", icon: Lightbulb,
+    prompt: "What contextual factor could change how fair the rule is?", thinkingActivators: ["Connect", "Challenge"]
+  },
+  {
+    id: 12, area: "Global Perspectives", category: "Global Perspectives", title: "Who should decide what is progress?",
+    question: "When a community changes in the name of progress, whose priorities should guide the decision?",
+    description: "Explore stakeholder perspectives and develop a position that acknowledges competing needs.", level: "Multiple perspectives", time: "8–10 min", color: "mint", icon: Globe2,
+    prompt: "Which stakeholder's perspective have you not considered yet?", thinkingActivators: ["Connect", "Challenge"]
+  },
+  {
+    id: 13, area: "Global Perspectives", category: "Global Perspectives", title: "Can individual choices solve collective problems?",
+    question: "Choose a shared problem. How much can individual actions change it, and what requires collective or institutional action?",
+    description: "Consider different scales of action and explain how they might interact.", level: "Reasoning", time: "8–10 min", color: "mint", icon: Globe2,
+    prompt: "How might individual and collective actions reinforce one another?", thinkingActivators: ["Develop", "Connect"]
+  },
+  {
+    id: 14, area: "Global Perspectives", category: "Global Perspectives", title: "What makes information trustworthy?",
+    question: "When two sources disagree about an issue, how would you decide which claims are more trustworthy?",
+    description: "Develop criteria for evaluating claims and explain how you would use them.", level: "Critical thinking", time: "8–10 min", color: "mint", icon: Globe2,
+    prompt: "What evidence would make you reconsider your judgement about a source?", thinkingActivators: ["Clarify", "Challenge"]
+  },
+  {
+    id: 15, area: "Global Perspectives", category: "Global Perspectives", title: "The unintended consequence",
+    question: "Think of a solution to a social or environmental problem. What unintended consequence could it produce, and how might that affect your decision?",
+    description: "Explore consequences beyond the immediate outcome and revise or qualify a proposed solution.", level: "Consequences and revision", time: "8–10 min", color: "mint", icon: Globe2,
+    prompt: "Could a different perspective reveal another unintended consequence?", thinkingActivators: ["Develop", "Challenge"]
+  },
+  {
+    id: 16, area: "Literature", category: "Literature", title: "Would you defend this character?",
+    question: "Choose a character whose actions are questionable. Under what circumstances, if any, could you defend their choices?",
+    description: "Build a nuanced interpretation by considering context, consequences and evidence from the text.", level: "Argumentation and interpretation", time: "5–8 min", color: "peach", icon: BookOpen,
+    prompt: "What evidence complicates or weakens your defence?", thinkingActivators: ["Develop", "Challenge"]
+  },
+
 ];
 
 const filters = ["All challenges", "Literature", "English", "Global Perspectives"];

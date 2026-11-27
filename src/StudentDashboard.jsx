@@ -1,122 +1,28 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, CalendarDays, Clock3, GraduationCap, Mic2, Sparkles, ClipboardList, ArrowRight, CheckCircle2, CircleDot } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, Clock3, GraduationCap, Mic2, Sparkles, ClipboardList, ArrowRight, CheckCircle2, CircleDot, Brain, Library, History } from "lucide-react";
 import Workspace from "./Workspace";
 import "./StudentDashboard.css";
-
-const PROGRESS_KEY = "vox.student.progress.v1";
-const readStore = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
-const makeId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const saveProgress = (items) => localStorage.setItem(PROGRESS_KEY, JSON.stringify(items));
-
-function toWorkspaceChallenge(challenge) {
-  if (!challenge) return null;
-  if (challenge.source === "teacher") return {
-    ...challenge,
-    category: challenge.area || "VOX challenge",
-    question: challenge.prompt || challenge.topic || challenge.title,
-    description: challenge.description || `Explore ${challenge.topic || challenge.title} and develop your thinking.`,
-    level: challenge.objective || "Interpretation",
-    time: "5–8 min",
-    color: "peach",
-    prompt: challenge.prompt || "What makes your thinking convincing?",
-  };
-  return challenge;
-}
-
-export default function StudentDashboard({ onBack, availableChallenges = [] }) {
-  const [assignments] = useState(() => readStore("vox.teacher.assignments.v1"));
-  const [courses] = useState(() => readStore("vox.teacher.courses.v1"));
-  const [createdChallenges] = useState(() => readStore("vox.teacher.challenges.v1"));
-  const [progress, setProgress] = useState(() => readStore(PROGRESS_KEY));
-  const [activeSession, setActiveSession] = useState(null);
-
-  const assignedItems = useMemo(() => assignments.map((assignment) => {
-    const challenge = [...availableChallenges, ...createdChallenges].find(item => String(item.id) === String(assignment.challengeId));
-    const course = courses.find(item => String(item.id) === String(assignment.courseId));
-    const challengeProgress = progress.filter(item => item.assignmentId === assignment.id);
-    return {
-      ...assignment,
-      challenge: toWorkspaceChallenge(challenge),
-      courseName: course?.name || assignment.courseName || "Your course",
-      attempts: challengeProgress.length,
-      completions: challengeProgress.filter(item => item.status === "completed").length,
-      latestStatus: challengeProgress.length ? challengeProgress[challengeProgress.length - 1].status : "not-started",
-    };
-  }).filter(item => item.challenge), [assignments, availableChallenges, createdChallenges, courses, progress]);
-
-  function startAssignment(item) {
-    const previousAttempts = progress.filter(p => p.assignmentId === item.id).length;
-    const session = {
-      id: makeId(),
-      assignmentId: item.id,
-      challengeId: item.challenge.id,
-      challengeTitle: item.challenge.title,
-      courseId: item.courseId,
-      courseName: item.courseName,
-      startedAt: new Date().toISOString(),
-      completedAt: null,
-      status: "started",
-      attemptNumber: previousAttempts + 1,
-    };
-    const next = [...progress, session];
-    saveProgress(next);
-    setProgress(next);
-    setActiveSession({ ...session, challenge: item.challenge });
-  }
-
-  function completeSession(result) {
-    if (!activeSession) return;
-    const next = progress.map(item => item.id === activeSession.id
-      ? { ...item, status: "completed", completedAt: new Date().toISOString(), thinking: result?.thinking || null, speaking: result?.speaking || null }
-      : item
-    );
-    saveProgress(next);
-    setProgress(next);
-  }
-
-  if (activeSession) {
-    return <Workspace
-      challenge={activeSession.challenge}
-      onBack={() => setActiveSession(null)}
-      onComplete={completeSession}
-    />;
-  }
-
-  return <div className="student-shell">
-    <header className="student-topbar">
-      <a className="student-brand" href="#student-home"><span className="student-brand-mark">v.</span> VOX <span className="student-space-label">STUDENT SPACE</span></a>
-      <button className="student-back" onClick={onBack}><ArrowLeft size={16}/> Explore VOX</button>
-    </header>
-    <main className="student-main" id="student-home">
-      <section className="student-welcome">
-        <div><span className="student-kicker"><Sparkles size={14}/> YOUR IDEAS. YOUR VOICE.</span><h1>Your learning<br/>space<span>.</span></h1><p>Challenges assigned to your group, ready for you to explore, think and speak.</p></div>
-        <div className="student-welcome-mark"><Mic2 size={34}/><span>THINK IT.<br/>BUILD IT.<br/>SAY IT.</span></div>
-      </section>
-
-      <section className="student-summary">
-        <div><strong>{assignedItems.length.toString().padStart(2,"0")}</strong><span>ASSIGNED CHALLENGES</span></div>
-        <div><strong>{progress.filter(item => item.status === "completed").length.toString().padStart(2,"0")}</strong><span>COMPLETED ACTIVITIES</span></div>
-      </section>
-
-      <section className="student-assignments">
-        <div className="student-section-heading"><div><span className="student-kicker">YOUR NEXT STEPS</span><h2>Assigned to you<span>.</span></h2><p>Choose a challenge and continue building your response.</p></div><ClipboardList size={26}/></div>
-        {assignedItems.length === 0 ? <div className="student-empty"><div className="student-empty-icon"><BookOpen size={25}/></div><h3>No assignments yet</h3><p>When your teacher assigns a VOX challenge to your course, it will appear here.</p><button onClick={onBack}>Explore available challenges <ArrowRight size={16}/></button></div> :
-          <div className="student-assignment-grid">
-            {assignedItems.map(item => <article className="student-assignment-card" key={item.id}>
-              <div className="student-card-meta"><span><GraduationCap size={14}/> {item.courseName}</span><span><CalendarDays size={14}/> {item.dueDate ? new Date(`${item.dueDate}T12:00:00`).toLocaleDateString() : "No due date"}</span></div>
-              <span className="student-card-kicker">{item.challenge.category || item.challenge.area || "VOX CHALLENGE"}</span>
-              <h3>{item.challenge.title}</h3>
-              <p className="student-card-question">{item.challenge.question || item.challenge.prompt}</p>
-              {item.instructions && <p className="student-card-instructions"><strong>Teacher's instructions:</strong> {item.instructions}</p>}
-              <div className="student-progress-line">
-                <span><CircleDot size={14}/> {item.attempts} {item.attempts === 1 ? "attempt" : "attempts"} · {item.completions} completed</span>
-                <span className={`student-status ${item.latestStatus}`}>{item.latestStatus === "completed" ? "Completed" : item.latestStatus === "started" ? "In progress" : "Not started"}</span>
-              </div>
-              <div className="student-card-footer"><span><Clock3 size={14}/> {item.challenge.time || "5–8 min"}</span><button onClick={() => startAssignment(item)}>{item.latestStatus === "started" ? "Try again" : item.completions ? "Try again" : "Start challenge"} <ArrowRight size={16}/></button></div>
-            </article>)}
-          </div>}
-      </section>
-      <footer className="student-storage-note"><CheckCircle2 size={15}/> Progress is stored in this browser. Attempts and written thinking are visible in Teacher Space on this device; individual student accounts and cloud synchronisation are a later stage.</footer>
-    </main>
-  </div>;
+const PROGRESS_KEY="vox.student.progress.v1";
+const readStore=(key)=>{try{return JSON.parse(localStorage.getItem(key)||"[]")}catch{return []}};
+const makeId=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const saveProgress=(items)=>localStorage.setItem(PROGRESS_KEY,JSON.stringify(items));
+const ACTIVATORS=["Clarify","Develop","Connect","Challenge"];
+function toWorkspaceChallenge(challenge){if(!challenge)return null;if(challenge.source==="teacher")return {...challenge,category:challenge.area||"VOX challenge",question:challenge.prompt||challenge.topic||challenge.title,description:challenge.description||`Explore ${challenge.topic||challenge.title} and develop your thinking.`,level:challenge.objective||"Interpretation",time:"5–8 min",color:"peach",prompt:challenge.prompt||"What makes your thinking convincing?"};return challenge;}
+export default function StudentDashboard({onBack,availableChallenges=[]}){
+ const [assignments]=useState(()=>readStore("vox.teacher.assignments.v1"));const [courses]=useState(()=>readStore("vox.teacher.courses.v1"));const [createdChallenges]=useState(()=>readStore("vox.teacher.challenges.v1"));const [progress,setProgress]=useState(()=>readStore(PROGRESS_KEY));const [activeSession,setActiveSession]=useState(null);const [view,setView]=useState(assignments.length?"assigned":"library");
+ const allChallenges=[...availableChallenges,...createdChallenges];
+ const assignedItems=useMemo(()=>assignments.map(a=>{const c=allChallenges.find(x=>String(x.id)===String(a.challengeId));const course=courses.find(x=>String(x.id)===String(a.courseId));const ps=progress.filter(x=>x.assignmentId===a.id);return {...a,challenge:toWorkspaceChallenge(c),courseName:course?.name||a.courseName||"Your course",attempts:ps.length,completions:ps.filter(x=>x.status==="completed").length,latestStatus:ps.length?ps.at(-1).status:"not-started"};}).filter(x=>x.challenge),[assignments,availableChallenges,createdChallenges,courses,progress]);
+ const libraryItems=availableChallenges.map(toWorkspaceChallenge);
+ function startChallenge(challenge,assignment=null){const prior=progress.filter(p=>assignment?p.assignmentId===assignment.id:p.challengeId===challenge.id).length;const s={id:makeId(),assignmentId:assignment?.id||null,challengeId:challenge.id,challengeTitle:challenge.title,courseId:assignment?.courseId||null,courseName:assignment?.courseName||null,source:assignment?"assigned":"library",activators:challenge.activators||[],startedAt:new Date().toISOString(),completedAt:null,status:"started",attemptNumber:prior+1};const next=[...progress,s];saveProgress(next);setProgress(next);setActiveSession({...s,challenge});}
+ function completeSession(result){if(!activeSession)return;const next=progress.map(x=>x.id===activeSession.id?{...x,status:"completed",completedAt:new Date().toISOString(),thinking:result?.thinking||null,speaking:result?.speaking||null}:x);saveProgress(next);setProgress(next);}
+ const completed=progress.filter(x=>x.status==="completed");
+ if(activeSession)return <Workspace challenge={activeSession.challenge} onBack={()=>setActiveSession(null)} onComplete={completeSession}/>;
+ return <div className="student-shell"><header className="student-topbar"><a className="student-brand" href="#student-home"><span className="student-brand-mark">v.</span> VOX <span className="student-space-label">STUDENT SPACE</span></a><button className="student-back" onClick={onBack}><ArrowLeft size={16}/> Explore VOX</button></header>
+ <main className="student-main" id="student-home"><section className="student-welcome"><div><span className="student-kicker"><Sparkles size={14}/> YOUR IDEAS. YOUR VOICE.</span><h1>Your learning<br/>space<span>.</span></h1><p>Explore challenges, make your thinking visible and track the ideas you develop through speaking.</p></div><div className="student-welcome-mark"><Mic2 size={34}/><span>THINK IT.<br/>BUILD IT.<br/>SAY IT.</span></div></section>
+ 
+ <nav className="vox-student-tabs">{assignedItems.length>0&&<button className={view==="assigned"?"active":""} onClick={()=>setView("assigned")}><ClipboardList size={17}/> Assigned challenges</button>}<button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library size={17}/> Challenge library</button><button className={view==="progress"?"active":""} onClick={()=>setView("progress")}><Brain size={17}/> My thinking progress</button></nav>
+ {view==="assigned"&&<section className="student-assignments"><div className="student-section-heading"><div><span className="student-kicker">YOUR NEXT STEPS</span><h2>Assigned to you<span>.</span></h2><p>Challenges assigned to your courses.</p></div><ClipboardList size={26}/></div>{assignedItems.length===0?<div className="student-empty"><div className="student-empty-icon"><BookOpen size={25}/></div><h3>No assignments yet</h3><p>When a teacher assigns a VOX challenge to one of your courses, it will appear here.</p></div>:<div className="student-assignment-grid">{assignedItems.map(item=><article className="student-assignment-card" key={item.id}><div className="student-card-meta"><span><GraduationCap size={14}/> {item.courseName}</span><span><CalendarDays size={14}/> {item.dueDate?new Date(`${item.dueDate}T12:00:00`).toLocaleDateString():"No due date"}</span></div><span className="student-card-kicker">{item.challenge.category||item.challenge.area||"VOX CHALLENGE"}</span><h3>{item.challenge.title}</h3><p className="student-card-question">{item.challenge.question||item.challenge.prompt}</p>{item.instructions&&<p className="student-card-instructions"><strong>Teacher's instructions:</strong> {item.instructions}</p>}<div className="student-card-footer"><button onClick={()=>startChallenge(item.challenge,item)}>Start challenge <ArrowRight size={16}/></button></div></article>)}</div>}</section>}
+ {view==="library"&&<section className="student-assignments"><div className="student-section-heading"><div><span className="student-kicker">OPEN EXPLORATION</span><h2>VOX challenge library<span>.</span></h2><p>Choose and practise independently. These activities don't require a course assignment.</p></div><Library size={26}/></div>{!libraryItems.length?<div className="student-empty"><h3>Library unavailable</h3><p>There are no library challenges currently loaded.</p></div>:<div className="student-assignment-grid">{libraryItems.map(c=><article className="student-assignment-card" key={c.id}><span className="student-card-kicker">{c.category||c.area||"VOX CHALLENGE"}</span><h3>{c.title}</h3><p className="student-card-question">{c.question||c.prompt}</p><div className="student-card-footer"><span><Clock3 size={14}/> {c.time||"5–8 min"}</span><button onClick={()=>startChallenge(c)}>Explore challenge <ArrowRight size={16}/></button></div></article>)}</div>}</section>}
+ {view==="progress"&&<section className="student-assignments vox-thinking-progress"><div className="student-section-heading"><div><span className="student-kicker">REFLECTION THROUGH EVIDENCE</span><h2>My thinking progress<span>.</span></h2><p>Review completed activities and the thinking activators they involved. This is a record of evidence, not a score.</p></div><Brain size={26}/></div><div className="vox-activator-grid">{ACTIVATORS.map(a=>{const records=completed.filter(x=>(x.activators||[]).includes(a));return <article key={a}><span>{a.toUpperCase()}</span><strong>{records.length}</strong><p>{records.length===1?"completed activity":"completed activities"}</p><small>{records.length?"Explore the evidence below":"No evidence recorded yet"}</small></article>})}</div>{completed.length===0?<div className="student-empty"><h3>Your thinking record is just beginning</h3><p>Complete a speaking activity to see your evidence and feedback here.</p></div>:<div className="vox-history"><h3><History size={18}/> Completed activity evidence</h3>{[...completed].sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).map(item=><article className="vox-history-item" key={item.id}><div className="vox-history-head"><div><span>{item.courseName|| (item.source==="library"?"Library activity":"Activity")}</span><h3>{item.challengeTitle}</h3></div><time>{new Date(item.completedAt).toLocaleDateString()}</time></div><div className="vox-tags">{(item.activators||[]).length?(item.activators||[]).map(x=><span key={x}>{x}</span>):<span>Activator not tagged</span>}</div>{item.thinking&&<details><summary>My thinking notes</summary><dl>{[["Initial idea",item.thinking.initialIdea],["Reasoning",item.thinking.reason],["Example / evidence",item.thinking.example],["Another perspective",item.thinking.otherPerspective]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v||"—"}</dd></div>)}</dl></details>}{item.speaking?.firstTranscription&&<details><summary>First speaking attempt</summary><p>{item.speaking.firstTranscription}</p>{item.speaking.firstFeedback&&<p>{JSON.stringify(item.speaking.firstFeedback)}</p>}</details>}{item.speaking?.secondTranscription&&<details><summary>Second speaking attempt</summary><p>{item.speaking.secondTranscription}</p></details>}{item.speaking?.comparison&&<details open><summary>Feedback and comparison</summary>{Object.entries(item.speaking.comparison).map(([k,v])=>v&&<div className="vox-feedback-evidence" key={k}><strong>{k.replace(/([A-Z])/g," $1")}</strong><p>{Array.isArray(v)?v.join(" · "):typeof v==="object"?JSON.stringify(v):v}</p></div>)}</details>}</article>)}</div>}</section>}
+ <footer className="student-storage-note"><CheckCircle2 size={15}/> Progress is stored in this browser. Student identity and cloud synchronisation are not yet connected.</footer></main></div>;
 }

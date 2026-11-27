@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, CalendarDays, GraduationCap, Plus, Trash2, Save, Sparkles, Pencil, X, Users } from "lucide-react";
+import { ArrowLeft, Home, BookOpen, CalendarDays, GraduationCap, Plus, Trash2, Save, Sparkles, Pencil, X, Users } from "lucide-react";
 import "./TeacherDashboard.css";
 
 const AREAS = ["Language & Literature", "Social Sciences", "History", "Ethics", "Citizenship", "Global Perspectives", "Natural Sciences", "Geography", "Philosophy", "Art", "Other"];
@@ -74,7 +74,7 @@ export default function TeacherDashboard({ onBack, availableChallenges = [] }) {
   function removeAssignment(id) { persist(ASSIGNMENTS_KEY, assignments.filter(item => item.id !== id), setAssignments); }
 
   return <div className="teacher-shell">
-    <header className="teacher-topbar"><a className="teacher-brand" href="#teacher-top"><span className="teacher-brand-mark">v.</span> VOX <span className="teacher-space-label">TEACHER SPACE</span></a><button className="teacher-back" onClick={onBack}><ArrowLeft size={16}/> Student space</button></header>
+    <header className="teacher-topbar"><a className="teacher-brand" href="#teacher-top"><span className="teacher-brand-mark">v.</span> VOX <span className="teacher-space-label">TEACHER SPACE</span></a><button className="teacher-back" onClick={onBack} aria-label="VOX home" title="VOX home"><Home size={18}/></button></header>
     <main className="teacher-main" id="teacher-top">
       <div className="teacher-heading"><div><span className="teacher-kicker"><Sparkles size={14}/> DESIGN LEARNING EXPERIENCES</span><h1>Teacher space<span>.</span></h1><p>Create challenges, organise your groups and plan learning experiences.</p></div><div className="teacher-stat"><strong>{String(challenges.length).padStart(2,"0")}</strong><span>MY CHALLENGES</span></div></div>
       <nav className="teacher-tabs" aria-label="Teacher workspace sections">
